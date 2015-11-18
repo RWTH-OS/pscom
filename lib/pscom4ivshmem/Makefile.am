@@ -15,12 +15,12 @@ include $(top_srcdir)/common.am
 AM_LDFLAGS += -avoid-version
 AM_CPPFLAGS += -DLIBDIR=\"$(libdir)\" -I$(top_srcdir)/lib/pscom
 
-lib_LTLIBRARIES = libpscom4openib.la
+lib_LTLIBRARIES = libpscom4ivshmem.la
 
-libpscom4openib_la_SOURCES = pscom_openib.c pscom_openib.h psoib.c psoib.h
-libpscom4openib_la_CPPFLAGS = $(AM_CPPFLAGS) $(OPENIB_CPPFLAGS)
-libpscom4openib_la_LDFLAGS = $(AM_LDFLAGS) $(OPENIB_LDFLAGS)
-libpscom4openib_la_LIBADD = -libverbs $(top_builddir)/lib/pscom/libpscom.la
+libpscom4ivshmem_la_SOURCES = pscom_ivshmem.c pscom_ivshmem.h psivshmem.c psivshmem.h
+libpscom4ivshmem_la_CPPFLAGS = $(AM_CPPFLAGS) $(IVSHMEM_CPPFLAGS)
+libpscom4ivshmem_la_LDFLAGS = $(AM_LDFLAGS) $(IVSHMEM_LDFLAGS)
+libpscom4ivshmem_la_LIBADD = -libverbs $(top_builddir)/lib/pscom/libpscom.la
 
 install-exec-hook:
 	cd $(DESTDIR)$(libdir) && $(RM) $(lib_LTLIBRARIES)

@@ -21,7 +21,7 @@
 #include <sys/uio.h>
 #include "list.h"
 
-typedef struct psoib_con_info psoib_con_info_t;
+typedef struct psivshmem_con_info psivshmem_con_info_t;
 typedef struct hca_info hca_info_t;
 typedef struct port_info port_info_t;
 

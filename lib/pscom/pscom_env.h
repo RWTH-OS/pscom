@@ -151,6 +151,7 @@ struct PSCOM_env {
 	unsigned int	rendezvous_size_extoll;
 	unsigned int	rendezvous_size_velo;
 	unsigned int	rendezvous_size_openib;
+	unsigned int   	rendezvous_size_ivshmem;
 	unsigned int	psm_uniq_id;
 	int		sigquit;
 	unsigned int	readahead;
@@ -183,6 +184,7 @@ struct PSCOM_env {
 	.rendezvous_size_extoll = ~0, /* default rendezvous_size for extoll */ \
 	.rendezvous_size_velo = 1024, /* default rendezvous_size for velo */ \
 	.rendezvous_size_openib = 40000, /* default rendezvous_size for openib */ \
+	.rendezvous_size_ivshmem = 4000,
 	.psm_uniq_id = 0,						\
 	.sigquit = 0,							\
 	.readahead = 100,						\

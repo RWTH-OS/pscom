@@ -8,15 +8,15 @@
  * as defined in the file LICENSE.QPL included in the packaging of this
  * file.
  *
- * Author:	Jens Hauke <hauke@par-tec.com>
+ * Author:	JonBau
  */
 /**
- * pscom_openib.h: Header for OPENIB/Infiniband communication
+ * pscom_ivshmem.h: Header for INTER-VM Shared Memory Communication
  */
 
-#ifndef _PSCOM_OPENIB_H_
-#define _PSCOM_OPENIB_H_
+#ifndef _PSCOM_IVSHMEM_H_
+#define _PSCOM_IVSHMEM_H_
 
 #include "p4sockets.h"
 
-#endif /* _PSCOM_OPENIB_H_ */
+#endif /* _PSCOM_IVSHMEM_H_ */
