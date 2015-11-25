@@ -395,7 +395,7 @@ void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
 			   psivshmem_con_info_t *mcon)
 {
 	con->pub.state = PSCOM_CON_STATE_RW;
-	con->pub.type = PSCOM_CON_TYPE_OPENIB;
+	con->pub.type = PSCOM_CON_TYPE_IVSHMEM;
 
 	close(con_fd);
 

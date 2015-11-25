@@ -726,7 +726,7 @@ int psivshmem_con_init(psivshmem_con_info_t *con_info, hca_info_t *hca_info, por
 }
 
 
-int psivhshmem_con_connect(psivshmem_con_info_t *con_info, psivshmem_info_msg_t *info_msg)
+int psivshmem_con_connect(psivshmem_con_info_t *con_info, psivshmem_info_msg_t *info_msg)
 {
     con_info->remote_ptr = info_msg->remote_ptr;
     con_info->remote_rkey = info_msg->remote_rkey;
