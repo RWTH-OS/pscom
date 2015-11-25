@@ -657,6 +657,10 @@ DAPL_LDFLAGS
 DAPL_CPPFLAGS
 OFED_ENABLED_FALSE
 OFED_ENABLED_TRUE
+IVSHMEM_ENABLED_FALSE
+IVSHMEM_ENABLED_TRUE
+IVSHMEM_LDFLAGS
+IVSHMEM_CPPFLAGS
 OPENIB_ENABLED_FALSE
 OPENIB_ENABLED_TRUE
 OPENIB_LDFLAGS
@@ -814,6 +818,7 @@ enable_psm
 enable_gm
 enable_mellanox
 enable_openib
+enable_ivshmem
 enable_ofed
 enable_dapl
 enable_elan
@@ -839,6 +844,8 @@ MELLANOX_CPPFLAGS
 MELLANOX_LDFLAGS
 OPENIB_CPPFLAGS
 OPENIB_LDFLAGS
+IVSHMEM_CPPFLAGS
+IVSHMEM_LDFLAGS
 DAPL_CPPFLAGS
 DAPL_LDFLAGS
 ELAN_CPPFLAGS
@@ -1485,6 +1492,7 @@ Optional Features:
   --disable-gm            disable Myrinet support
   --disable-mellanox      disable Mellanox support
   --disable-openib        disable Infiniband OFED with RC support
+  --disable-ivshmem       disable InterVMsharedMemory OFED with RC support
   --disable-ofed          disable Infiniband OFED with UD support
   --disable-dapl          disable DAPL support
   --disable-elan          disable ELAN support
@@ -1526,6 +1534,10 @@ Some influential environment variables:
               C preprocessor flags for OPENIB headers
   OPENIB_LDFLAGS
               linker flags for OPENIB libraries
+  IVSHMEM_CPPFLAGS
+              C preprocessor flags for IVSHMEM headers
+  IVSHMEM_LDFLAGS
+              linker flags for IVSHMEM libraries
   DAPL_CPPFLAGS
               C preprocessor flags for DAPL headers
   DAPL_LDFLAGS
@@ -2470,7 +2482,7 @@ test -n "$target_alias" &&
     NONENONEs,x,x, &&
   program_prefix=${target_alias}-
 
-am__api_version='1.12'
+am__api_version='1.13'
 
 # Find a good install program.  We prefer a C program (faster),
 # so one script is as good as another.  But avoid the broken or
@@ -2654,8 +2666,8 @@ if test x"${MISSING+set}" != xset; then
   esac
 fi
 # Use eval to expand $SHELL
-if eval "$MISSING --run true"; then
-  am_missing_run="$MISSING --run "
+if eval "$MISSING --is-lightweight"; then
+  am_missing_run="$MISSING "
 else
   am_missing_run=
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: 'missing' script is too old or missing" >&5
@@ -2987,7 +2999,12 @@ mkdir_p='$(MKDIR_P)'
 # in the wild :-(  We should find a proper way to deprecate it ...
 AMTAR='$${TAR-tar}'
 
+
+# We'll loop over all known methods to create a tar archive until one works.
+_am_tools='gnutar  pax cpio none'
+
 am__tar='$${TAR-tar} chof - "$$tardir"' am__untar='$${TAR-tar} xf -'
+
 
 
 
@@ -12189,6 +12206,104 @@ else
 fi
 
 
+# -- IVSHmem --
+
+# Check whether --enable-ivshmem was given.
+if test "${enable_ivshmem+set}" = set; then :
+  enableval=$enable_ivshmem;
+fi
+
+if test "x$enable_ivshmem" != xno; then :
+
+
+
+
+  if ${ax_cv_have_IVSHMEM+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  save_CPPFLAGS="$CPPFLAGS"
+     save_LDFLAGS="$LDFLAGS"
+     save_LIBS="$LIBS"
+
+     if test "x$IVSHMEM_CPPFLAGS" != "x"; then :
+  CPPFLAGS="$CPPFLAGS $IVSHMEM_CPPFLAGS"
+fi
+
+     if test "x$IVSHMEM_LDFLAGS" != "x"; then :
+  LDFLAGS="$LDFLAGS $IVSHMEM_LDFLAGS"
+fi
+
+     ac_fn_c_check_header_mongrel "$LINENO" "infiniband/verbs.h" "ac_cv_header_infiniband_verbs_h" "$ac_includes_default"
+if test "x$ac_cv_header_infiniband_verbs_h" = xyes; then :
+
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -libverbs" >&5
+$as_echo_n "checking for main in -libverbs... " >&6; }
+if ${ac_cv_lib_ibverbs_main+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-libverbs  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+int
+main ()
+{
+return main ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_ibverbs_main=yes
+else
+  ac_cv_lib_ibverbs_main=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_ibverbs_main" >&5
+$as_echo "$ac_cv_lib_ibverbs_main" >&6; }
+if test "x$ac_cv_lib_ibverbs_main" = xyes; then :
+  ax_cv_have_IVSHMEM=yes
+else
+  ax_cv_have_IVSHMEM=no
+fi
+
+
+else
+  ax_cv_have_IVSHMEM=no
+fi
+
+
+
+     CPPFLAGS="$save_CPPFLAGS"
+     LDFLAGS="$save_LDFLAGS"
+     LIBS="$save_LIBS"
+
+fi
+
+
+  if test "$ax_cv_have_IVSHMEM" = "yes"; then :
+  have_ivshmem=yes
+else
+  have_ivshmem=no
+fi
+
+fi
+if test "x$have_ivshmem" = xno -a "x$enable_ivshmem" = xyes; then :
+  as_fn_error $? "ivshmem support requested but not found" "$LINENO" 5
+fi
+ if test "x$enable_ivshmem" != xno -a "x$have_ivshmem" = xyes; then
+  IVSHMEM_ENABLED_TRUE=
+  IVSHMEM_ENABLED_FALSE='#'
+else
+  IVSHMEM_ENABLED_TRUE='#'
+  IVSHMEM_ENABLED_FALSE=
+fi
+
 # -- OFED --
 
 # Check whether --enable-ofed was given.
@@ -12721,6 +12836,8 @@ ac_config_files="$ac_config_files lib/pscom4ofed/Makefile"
 
 ac_config_files="$ac_config_files lib/pscom4openib/Makefile"
 
+ac_config_files="$ac_config_files lib/pscom4ivshmem/Makefile"
+  #Added for IVSHMEM Plugin
 ac_config_files="$ac_config_files lib/pscom4psm/Makefile"
 
 ac_config_files="$ac_config_files lib/psmalloc/Makefile"
@@ -12921,6 +13038,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${OPENIB_ENABLED_TRUE}" && test -z "${OPENIB_ENABLED_FALSE}"; then
   as_fn_error $? "conditional \"OPENIB_ENABLED\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${IVSHMEM_ENABLED_TRUE}" && test -z "${IVSHMEM_ENABLED_FALSE}"; then
+  as_fn_error $? "conditional \"IVSHMEM_ENABLED\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${OFED_ENABLED_TRUE}" && test -z "${OFED_ENABLED_FALSE}"; then
@@ -13812,6 +13933,7 @@ do
     "lib/pscom4gm/Makefile") CONFIG_FILES="$CONFIG_FILES lib/pscom4gm/Makefile" ;;
     "lib/pscom4ofed/Makefile") CONFIG_FILES="$CONFIG_FILES lib/pscom4ofed/Makefile" ;;
     "lib/pscom4openib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/pscom4openib/Makefile" ;;
+    "lib/pscom4ivshmem/Makefile") CONFIG_FILES="$CONFIG_FILES lib/pscom4ivshmem/Makefile" ;;
     "lib/pscom4psm/Makefile") CONFIG_FILES="$CONFIG_FILES lib/pscom4psm/Makefile" ;;
     "lib/psmalloc/Makefile") CONFIG_FILES="$CONFIG_FILES lib/psmalloc/Makefile" ;;
     "lib/psport4/Makefile") CONFIG_FILES="$CONFIG_FILES lib/psport4/Makefile" ;;
@@ -14246,7 +14368,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
   case $ac_file$ac_mode in
     "depfiles":C) test x"$AMDEP_TRUE" != x"" || {
-  # Autoconf 2.62 quotes --file arguments for eval, but not when files
+  # Older Autoconf quotes --file arguments for eval, but not when files
   # are listed without --file.  Let's play safe and only enable the eval
   # if we detect the quoting.
   case $CONFIG_FILES in
@@ -14297,7 +14419,7 @@ $as_echo X"$mf" |
     DEPDIR=`sed -n 's/^DEPDIR = //p' < "$mf"`
     test -z "$DEPDIR" && continue
     am__include=`sed -n 's/^am__include = //p' < "$mf"`
-    test -z "am__include" && continue
+    test -z "$am__include" && continue
     am__quote=`sed -n 's/^am__quote = //p' < "$mf"`
     # Find all dependency output files, they are included files with
     # $(DEPDIR) in their names.  We invoke sed twice because it is the
@@ -15048,6 +15170,13 @@ $as_echo "$as_me: OPENIB_ENABLED:   yes" >&6;}
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: OPENIB_ENABLED:   no" >&5
 $as_echo "$as_me: OPENIB_ENABLED:   no" >&6;}
+fi
+if test -z "$IVSHMEM_ENABLED_TRUE"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: IVSHMEM_ENABLED:   yes" >&5
+$as_echo "$as_me: IVSHMEM_ENABLED:   yes" >&6;}
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: IVSHMEM_ENABLED:   no" >&5
+$as_echo "$as_me: IVSHMEM_ENABLED:   no" >&6;}
 fi
 if test -z "$OFED_ENABLED_TRUE"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: OFED_ENABLED:     yes" >&5

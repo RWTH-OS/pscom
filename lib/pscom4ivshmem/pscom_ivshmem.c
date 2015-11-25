@@ -11,7 +11,7 @@
  * Author:	Jens Hauke <hauke@par-tec.com>
  */
 /**
- * pscom_openib.c: OPENIB/Infiniband communication
+ * pscom_ivshmem.c: OPENIB/Infiniband communication
  */
 
 #include "psivshmem.h"
@@ -39,7 +39,7 @@ struct pscom_poll_reader pscom_cq_poll;
 
 int pscom_poll_cq(pscom_poll_reader_t *reader)
 {
-	psoib_progress();
+	psivshmem_progress();
 
 	if (!psivshmem_outstanding_cq_entries) {
 		/* Stop polling on cq */
@@ -134,7 +134,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 /*
  * ++ RMA rendezvous begin
  */
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
 
 typedef struct pscom_rendezvous_data_ivshmem {
 	struct psivshmem_rma_req	rma_req;
@@ -163,12 +163,12 @@ unsigned int pscom_ivshmem_rma_mem_register(pscom_con_t *con, pscom_rendezvous_d
 	psivshmem_con_info_t *ci = con->arch.ivshmem.mcon;
 	psivshmem_rma_mreg_t *mreg = &ivshmem_rd->rma_req.mreg;
 
-#ifdef IB_RNDV_USE_PADDING
-#ifdef   IB_RNDV_RDMA_WRITE
-#error   IB_RNDV_USE_PADDING and IB_RNDV_RDMA_WRITE are mutually exclusive!
+#ifdef IVSHMEM_RNDV_USE_PADDING
+#ifdef   IVSHMEM_RNDV_RDMA_WRITE
+#error   IVSHMEM_RNDV_USE_PADDING and IVSHMEM_RNDV_RDMA_WRITE are mutually exclusive!
 #endif
 
-	rd->msg.arch.ivshmem.padding_size = (IB_RNDV_PADDING_SIZE - ((long long int)rd->msg.data) % IB_RNDV_PADDING_SIZE) % IB_RNDV_PADDING_SIZE;
+	rd->msg.arch.ivshmem.padding_size = (IVSHMEM_RNDV_PADDING_SIZE - ((long long int)rd->msg.data) % IVSHMEM_RNDV_PADDING_SIZE) % IVSHMEM_RNDV_PADDING_SIZE;
 
 	memcpy(rd->msg.arch.ivshmem.padding_data, rd->msg.data, rd->msg.arch.ivshmem.padding_size);
 
@@ -244,7 +244,7 @@ int pscom_ivshmem_rma_read(pscom_req_t *rendezvous_req, pscom_rendezvous_data_t 
 	psivshmem_con_info_t *ci = con->arch.ivshmem.mcon;
 
 	perf_add("ivshmem_rma_read");
-#ifdef IB_RNDV_USE_PADDING
+#ifdef IVSHMEM_RNDV_USE_PADDING
 	memcpy(rendezvous_req->pub.data, rd->msg.arch.ivshmem.padding_data, rd->msg.arch.ivshmem.padding_size);
 	rendezvous_req->pub.data += rd->msg.arch.ivshmem.padding_size;
 	rendezvous_req->pub.data_len -= rd->msg.arch.ivshmem.padding_size;
@@ -298,9 +298,9 @@ int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t 
 {
 	pscom_rendezvous_data_t *rd_data = (pscom_rendezvous_data_t *)pscom_malloc(sizeof(*rd_data));
 	pscom_rendezvous_data_ivshmem_t *rd_data_ivshmem = get_req_data(rd_data);
-	psoib_con_info_t *mcon = con->arch.ivshmem.mcon;
+	psivshmem_con_info_t *mcon = con->arch.ivshmem.mcon;
 
-	psoib_rma_req_t *dreq = &rd_data_ivshmem->rma_req;
+	psivshmem_rma_req_t *dreq = &rd_data_ivshmem->rma_req;
 	int len, err;
 
 	rd_data->msg.id = (void*)42;
@@ -327,9 +327,9 @@ int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t 
 	rd_data_ivshmem->io_done = io_done;
 	rd_data_ivshmem->priv = priv;
 
-	err = psoib_post_rma_put(dreq);
+	err = psivshmem_post_rma_put(dreq);
 	assert(!err); // ToDo: Catch error
-	rd_data = NULL; /* Do not use rd_data after psoib_post_rma_put()!
+	rd_data = NULL; /* Do not use rd_data after psivshmem_post_rma_put()!
 			   io_done might already be called and freed rd_data. */
 
 	return 0;
@@ -343,7 +343,7 @@ int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t 
 static
 void pscom_ivshmem_close(pscom_con_t *con)
 {
-	psivsmem_con_info_t *mcon = con->arch.ivshmem.mcon;
+	psivshmem_con_info_t *mcon = con->arch.ivshmem.mcon;
 
 	if (!mcon) return;
 
@@ -355,8 +355,8 @@ void pscom_ivshmem_close(pscom_con_t *con)
 	con->arch.ivshmem.mcon = NULL;
 }
 
-#ifdef IB_USE_RNDV
-#ifdef IB_RNDV_USE_MALLOC_HOOKS
+#ifdef IVSHMEM_USE_RNDV
+#ifdef IVSHMEM_RNDV_USE_MALLOC_HOOKS
 static void *pscom_ivshmem_morecore_hook(ptrdiff_t incr)
 {
 	/* Do not return memory back to the OS: (do not trim) */
@@ -392,7 +392,7 @@ static void pscom_ivshmem_free_hook(void *ptr, const void *caller)
 
 static
 void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
-			   psoib_con_info_t *mcon)
+			   psivshmem_con_info_t *mcon)
 {
 	con->pub.state = PSCOM_CON_STATE_RW;
 	con->pub.type = PSCOM_CON_TYPE_OPENIB;
@@ -411,10 +411,10 @@ void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
 	con->do_write = pscom_ivshmem_do_write;
 	con->close = pscom_ivshmem_close;
 
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
 	con->rma_mem_register = pscom_ivshmem_rma_mem_register;
 	con->rma_mem_deregister = pscom_ivshmem_rma_mem_deregister;
-#ifdef IB_RNDV_RDMA_WRITE
+#ifdef IVSHMEM_RNDV_RDMA_WRITE
 	con->rma_write = pscom_ivshmem_rma_write;
 #else
 	con->rma_read = pscom_ivshmem_rma_read;
@@ -422,11 +422,11 @@ void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
 
 	con->rendezvous_size = pscom.env.rendezvous_size_ivshmem;
 
-#ifdef IB_RNDV_DISABLE_FREE_TO_OS
+#ifdef IVSHMEM_RNDV_DISABLE_FREE_TO_OS
 
 	/* We have to prevent free() from returning memory back to the OS: */
 
-#ifndef IB_RNDV_USE_MALLOC_HOOKS
+#ifndef IVSHMEM_RNDV_USE_MALLOC_HOOKS
 	if (con->rendezvous_size != ~0U) {
 		/* See 'man mallopt(3) / M_MMAP_MAX': Setting this parameter to 0 disables the use of mmap(2) for servicing large allocation requests. */
 		mallopt(M_MMAP_MAX, 0);
@@ -436,7 +436,7 @@ void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
 	}
 #else
 	if(__morecore == __default_morecore) {
-		/* Switch to our own function pscom_openib_morecore() that does not trim: */
+		/* Switch to our own function pscom_ivshmem_morecore() that does not trim: */
 		__morecore = pscom_ivshmem_morecore_hook;
 	}
 
@@ -496,10 +496,10 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	int call_cleanup_con = 0;
 	int err;
 
-	if (psoib_init() || !mcon)
-		goto dont_use;  /* Dont use openib */
+	if (psivshmem_init() || !mcon)
+		goto dont_use;  /* Dont use ivshmem */
 
-	/* We want talk openib */
+	/* We want talk ivshmem */
 	pscom_writeall(con_fd, &arch, sizeof(arch));
 
 	/* step 1 */
@@ -528,7 +528,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 
 	if (err) goto err_connect;
 
-	/* step 4: openib initialized. Recv final ACK. */
+	/* step 4: ivshmem initialized. Recv final ACK. */
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) ||
 	    (msg.lid == 0xffff)) goto err_ack;
 
@@ -554,7 +554,7 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	psivshmem_info_msg_t msg;
 
 	if (psivshmem_init())
-		goto out_noopenib;
+		goto out_noivshmem;
 
 	mcon = psivshmem_con_create();
 	if (!mcon)
@@ -563,11 +563,11 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	if (psivshmem_con_init(mcon, NULL, NULL))
 		goto err_con_init;
 
-	/* step 1:  Yes, we talk openib. */
+	/* step 1:  Yes, we talk ivshmem. */
 	pscom_writeall(con_fd, &arch, sizeof(arch));
 
 	/* step 2: Send Connection id's */
-	psoib_con_get_info_msg(mcon, &msg);
+	psivshmem_con_get_info_msg(mcon, &msg);
 
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
@@ -579,7 +579,7 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	if (psivshmem_con_connect(mcon, &msg))
 		goto err_connect_con;
 
-	/* step 4: OPENIB mem initialized. Send final ACK. */
+	/* step 4: OPENIVSHMEM mem initialized. Send final ACK. */
 	msg.lid = 0;
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
@@ -598,7 +598,7 @@ out_noivshmem:
 	if (mcon) psivshmem_con_free(mcon);
 	arch = PSCOM_ARCH_ERROR;
 	pscom_writeall(con_fd, &arch, sizeof(arch));
-	return 0; /* Dont use openib */
+	return 0; /* Dont use ivshmem */
 	/* --- */
 }
 

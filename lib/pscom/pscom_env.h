@@ -85,6 +85,23 @@
 #define ENV_OPENIB_LID_OFFSET "PSP_OPENIB_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
 
 
+/* IVSHMEM HCA and port */			// ############# ADDED ###########
+#define ENV_IVSHMEM_HCA "PSP_IVSHMEM_HCA"   /* default: first hca */
+#define ENV_IVSHMEM_PORT "PSP_IVSHMEM_PORT" /* default: port 1 */
+#define ENV_IVSHMEM_PATH_MTU "PSP_IVSHMEM_PATH_MTU" /* default: 3
+						     1 : IBV_MTU_256
+						     2 : IBV_MTU_512
+						     3 : IBV_MTU_1024 */
+#define ENV_IVSHMEM_SENDQ_SIZE "PSP_IVSHMEM_SENDQ_SIZE"
+#define ENV_IVSHMEM_RECVQ_SIZE "PSP_IVSHMEM_RECVQ_SIZE"
+#define ENV_IVSHMEM_COMPQ_SIZE "PSP_IVSHMEM_COMPQ_SIZE"
+#define ENV_IVSHMEM_PENDING_TOKENS "PSP_IVSHMEM_PENDING_TOKENS"
+#define ENV_IVSHMEM_GLOBAL_SENDQ "PSP_IVSHMEM_GLOBAL_SENDQ" /* bool: Use one sendq for all connections? default: 0(no) */
+#define ENV_IVSHMEM_EVENT_CNT "PSP_IVSHMEM_EVENT_CNT" /* bool: Be busy if outstanding_cq_entries is to high? default: 1(yes) */
+#define ENV_IVSHMEM_IGNORE_WRONG_OPCODES "PSP_IVSHMEM_IGNORE_WRONG_OPCODES" /* bool: ignore wrong cq opcodes */
+#define ENV_IVSHMEM_LID_OFFSET "PSP_IVSHMEM_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
+
+
 /* OFED HCA and port */
 #define ENV_OFED_HCA "PSP_OFED_HCA"   /* default: first hca */
 #define ENV_OFED_PORT "PSP_OFED_PORT" /* default: port 1 */
@@ -184,7 +201,7 @@ struct PSCOM_env {
 	.rendezvous_size_extoll = ~0, /* default rendezvous_size for extoll */ \
 	.rendezvous_size_velo = 1024, /* default rendezvous_size for velo */ \
 	.rendezvous_size_openib = 40000, /* default rendezvous_size for openib */ \
-	.rendezvous_size_ivshmem = 4000,
+	.rendezvous_size_ivshmem = 40000,	\
 	.psm_uniq_id = 0,						\
 	.sigquit = 0,							\
 	.readahead = 100,						\

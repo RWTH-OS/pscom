@@ -92,6 +92,7 @@ void init_final(void)
 	"libpsport4all.so",
 	"libpsport4gm.so",
 	"libpsport4openib.so",
+	"libpsport4ivshmem.so",
 	"libpsport4mvapi.so",
 	"libpsport4.so",
 	NULL

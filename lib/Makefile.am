@@ -52,9 +52,11 @@ endif
 # -- openib --
 if OPENIB_ENABLED
     SUBDIRS += pscom4openib
+endif
+
+# -- ivshmem --
+if IVSHMEM_ENABLED   
     SUBDIRS += pscom4ivshmem  #addes IVSHMEM PluginDir
-
-
 endif
 
 # -- psm --

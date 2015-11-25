@@ -296,6 +296,7 @@ void pscom_plugins_init(void)
 		"velo",
 		"dapl",
 		"mxm",
+		"ivshmem",	// ##### ADDED ##### 
 		NULL };
 	char **tmp;
 

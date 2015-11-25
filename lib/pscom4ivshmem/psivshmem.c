@@ -43,7 +43,7 @@
 /* MTU on infiniband */
 #define IVSHMEM_MTU_SPEC IBV_MTU_1024
 #define IVSHMEM_MTU	(16*1024) /* must be < 65536, or change sizeof psoib_msgheader_t.payload,
-			     and should be a power of IB_MTU_SPEC */
+			     and should be a power of IVSHMEM_MTU_SPEC */
 
 #define IVSHMEM_MTU_PAYLOAD	(IVSHMEM_MTU - sizeof(psivshmem_msgheader_t))
 #define IVSHMEM_MAX_INLINE	64
@@ -165,7 +165,7 @@ unsigned int psivshmem_pending_tokens = _SIZE_RECV_QUEUE - 6;
 
 int psivshmem_global_sendq = 0; /* bool. Use one sendqueue for all connections? */
 int psivshmem_event_count = 1; /* bool. Be busy if outstanding_cq_entries is to high? */
-int psivshmme_ignore_wrong_opcodes = 0; /* bool: ignore wrong cq opcodes */
+int psivshmem_ignore_wrong_opcodes = 0; /* bool: ignore wrong cq opcodes */
 int psivshmem_lid_offset; /* int: offset to base LID (adaptive routing) */
 
 struct psivshmem_stat_s {
@@ -180,7 +180,7 @@ struct psivshmem_stat_s {
 
 #define psivshmem_dprint(level,fmt,arg... )					\
     do {								\
-	if ((level) <= psoib_debug) {					\
+	if ((level) <= psivshmem_debug) {					\
 	    fprintf(psivshmem_debug_stream ? psivshmem_debug_stream : stderr,	\
 		    "ib:" fmt "\n",##arg);				\
 	}								\
@@ -334,7 +334,7 @@ void psivshmem_scan_all_ports(void)
     int dev_list_count;
     int i;
 
-    // psoib_dprint(3, "configured port <%s>", port_name(psoib_hca, psoib_port));
+    // psivshmem_dprint(3, "configured port <%s>", port_name(ivshmem_hca, ivshmem_port));
 
     dev_list = ibv_get_device_list(&dev_list_count);
     if (!dev_list) goto err_no_dev_list;
@@ -369,7 +369,7 @@ struct ibv_device *psivshmem_get_dev_by_hca_name(const char *in_hca_name)
 
 	// tmp = ibv_get_device_name(ib_dev);
 
-	// psoib_dprint(2, "Got IB device \"%s\"", tmp);
+	// psivshmem_dprint(2, "Got IB device \"%s\"", tmp);
 
 	if (!ib_dev) goto err_no_dev2;
     } else {
@@ -379,7 +379,7 @@ struct ibv_device *psivshmem_get_dev_by_hca_name(const char *in_hca_name)
 	    if (!ib_dev) break;
 	    const char *tmp = ibv_get_device_name(ib_dev);
 	    if (!strcmp(tmp, in_hca_name)) {
-		// psoib_dprint(2, "Got IB device \"%s\"", tmp);
+		// psivshmem_dprint(2, "Got IB device \"%s\"", tmp);
 		break;
 	    }
 	    ib_dev = NULL;
@@ -391,18 +391,18 @@ struct ibv_device *psivshmem_get_dev_by_hca_name(const char *in_hca_name)
     return ib_dev;
     /* --- */
  err_no_dev:
-    psivshmem_err_errno("ibv_get_devices() failed (IVSHMEM): No IB dev found", errno);
+    psivshmem_err_errno("ibv_get_devices() failed (IVSHMEM): No IVSHMEM dev found", errno);
     return 0;
     /* --- */
  err_no_dev2:
-    psivshmem_err_errno("ibv_get_devices() failed (IVSHMEM): IB dev list empty", errno);
+    psivshmem_err_errno("ibv_get_devices() failed (IVSHMEM): IVSHMEM dev list empty", errno);
     ibv_free_device_list(dev_list);
     return 0;
     /* --- */
  err_no_dev_name:
     {
 	static char err_str[50];
-	snprintf(err_str, sizeof(err_str), "(IVSHMEM) IB device \"%s\"", in_hca_name);
+	snprintf(err_str, sizeof(err_str), "(IVSHMEM) IVSHMEM device \"%s\"", in_hca_name);
 	psivshmem_err_errno(err_str, ENODEV);
 	ibv_free_device_list(dev_list);
 	return 0;
@@ -485,9 +485,9 @@ void print_mlock_help(unsigned size)
     called = 1;
 
     if (size) {
-	psivshmem_dprint(0, "OPENIB: memlock(%u) failed.", size);
+	psivshmem_dprint(0, "OPENIVSHMEM: memlock(%u) failed.", size);
     } else {
-	psivshmem_dprint(0, "OPENIB: memlock failed.");
+	psivshmem_dprint(0, "OPENIVSHMEM: memlock failed.");
     }
     psivshmem_dprint(0, "(Check memlock limit in /etc/security/limits.conf or try 'ulimit -l')");
 
@@ -649,7 +649,7 @@ int psivshmem_con_init(psivshmem_con_info_t *con_info, hca_info_t *hca_info, por
 		.max_recv_wr  = 128, /* Max outstanding WR on the RQ ??*/
 		.max_send_sge = 1,   /* Max scatter/gather descriptor entries on the SQ ??*/
 		.max_recv_sge = 1,   /* Max scatter/gather descriptor entries on the RQ */
-		.max_inline_data = IB_MAX_INLINE,
+		.max_inline_data = IVSHMEM_MAX_INLINE,
 	    },
 	    .qp_type = IBV_QPT_RC
 	};
@@ -680,8 +680,8 @@ int psivshmem_con_init(psivshmem_con_info_t *con_info, hca_info_t *hca_info, por
      *  Memory for send and receive bufs
      */
 
-    if (!psoib_global_sendq) {
-	if (psoib_vapi_alloc(hca_info, IB_MTU * psoib_sendq_size,
+    if (!psivshmem_global_sendq) {
+	if (psivshmem_vapi_alloc(hca_info, IVSHMEM_MTU * psivshmem_sendq_size,
 			     0, &con_info->send.bufs))
 	    goto err_alloc;
     }
@@ -689,13 +689,13 @@ int psivshmem_con_init(psivshmem_con_info_t *con_info, hca_info_t *hca_info, por
 
     con_info->outstanding_cq_entries = 0;
 
-    if (psivshmem_vapi_alloc(hca_info, IB_MTU * psivshmem_recvq_size,
+    if (psivshmem_vapi_alloc(hca_info, IVSHMEM_MTU * psivshmem_recvq_size,
 			 IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE,
 			 &con_info->recv.bufs))
 	goto err_alloc;
 
     /* Clear all receive magics */
-    for (i = 0; i < psoib_recvq_size; i++) {
+    for (i = 0; i < psivshmem_recvq_size; i++) {
 	psivshmem_msg_t *msg = ((psivshmem_msg_t *)con_info->recv.bufs.ptr) + i;
 	msg->tail.magic = PSIVSHMEM_MAGIC_UNUSED;
     }
@@ -721,7 +721,7 @@ int psivshmem_con_init(psivshmem_con_info_t *con_info, hca_info_t *hca_info, por
     goto return_1;
     /* --- */
  return_1:
-    psivshmem_dprint(1, "psoib_con_init failed : %s", psivshmem_err_str);
+    psivshmem_dprint(1, "psivshmem_con_init failed : %s", psivshmem_err_str);
     return -1;
 }
 
@@ -792,7 +792,7 @@ int psivshmem_init_hca(hca_info_t *hca_info)
     INIT_LIST_HEAD(&hca_info->list_con_info);
 
     if (psivshmem_pending_tokens > psivshmem_recvq_size) {
-	psivshmem_dprint(1, "warning [ivshmem]: reset psivshmem_pending_tokens from %u to %u\n",
+	psivshmem_dprint(1, "warning [psivshmem]: reset psivshmem_pending_tokens from %u to %u\n",
 		     psivshmem_pending_tokens, psivshmem_recvq_size);
 	psivshmem_pending_tokens = psivshmem_recvq_size;
     }
@@ -817,15 +817,15 @@ int psivshmem_init_hca(hca_info_t *hca_info)
     if (!hca_info->pd) goto err_pd;
 
     if (psivshmem_global_sendq) {
-	if (psivshmem_vapi_alloc(hca_info, IB_MTU * psivshmem_sendq_size, 0, &hca_info->send.bufs))
+	if (psivshmem_vapi_alloc(hca_info, IVSHMEM_MTU * psivshmem_sendq_size, 0, &hca_info->send.bufs))
 	    goto err_alloc;
     }
     hca_info->send.pos = 0;
 
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
     INIT_LIST_HEAD(&hca_info->rma_reqs);
     hca_info->rma_reqs_reader.do_read = psivshmem_rma_reqs_progress;
-#ifdef IB_RNDV_USE_MREG_CACHE
+#ifdef IVSHMEM_RNDV_USE_MREG_CACHE
     psivshmem_mregion_cache_init();
 #endif
 #endif
@@ -905,7 +905,7 @@ int psivshmem_poll(hca_info_t *hca_info, int blocking);
 
 /* returnvalue like write(), except on error errno is negative return */
 
-/* It's important, that the sending side is aligned to IB_MTU_SPEC,
+/* It's important, that the sending side is aligned to IVSHMEM_MTU_SPEC,
    else we loose a lot of performance!!! */
 static
 int _psivshmem_sendv(psivshmem_con_info_t *con_info, struct iovec *iov, int size, unsigned int magic)
@@ -935,13 +935,13 @@ int _psivshmem_sendv(psivshmem_con_info_t *con_info, struct iovec *iov, int size
 	goto err_busy;
     }
 
-    if (psivshmem_outstanding_cq_entries >= psivshmem_compq_size && ivshmem_event_count) {
+    if (psivshmem_outstanding_cq_entries >= psivshmem_compq_size && psivshmem_event_count) {
 	// printf("Busy global\n"); usleep(10*1000);
 	psivshmem_stat.busy_global_cq++;
 	goto err_busy;
     }
 
-    len = (size <= (int)IB_MTU_PAYLOAD) ? size : (int)IB_MTU_PAYLOAD;
+    len = (size <= (int)IVSHMEM_MTU_PAYLOAD) ? size : (int)IVSHMEM_MTU_PAYLOAD;
     psivshmemlen = PSIVSHMEM_LEN(len);
 
     ringbuf_t *send = (con_info->send.bufs.mr) ? &con_info->send : &hca_info->send;
@@ -973,7 +973,7 @@ int _psivshmem_sendv(psivshmem_con_info_t *con_info, struct iovec *iov, int size
 	    .opcode	= IBV_WR_RDMA_WRITE,
 	    .send_flags	= (
 		(ENABLE_SEND_NOTIFICATION ? IBV_SEND_SIGNALED : 0) | /* no cq entry, if unsignaled */
-		((list.length <= IB_MAX_INLINE) ? IBV_SEND_INLINE : 0)),
+		((list.length <= IVSHMEM_MAX_INLINE) ? IBV_SEND_INLINE : 0)),
 	    .imm_data	= 42117,
 
 	    .wr.rdma = {
@@ -1029,7 +1029,7 @@ int _psivshmem_sendv(psivshmem_con_info_t *con_info, struct iovec *iov, int size
 
 int psivshmem_sendv(psivshmem_con_info_t *con_info, struct iovec *iov, int size)
 {
-	return _psivshmem_sendv(con_info, iov, size, PSOIB_MAGIC_IO);
+	return _psivshmem_sendv(con_info, iov, size, PSIVSHMEM_MAGIC_IO);
 }
 
 
@@ -1056,7 +1056,7 @@ void psivshmem_recvdone(psivshmem_con_info_t *con_info)
     con_info->n_recv_toks--;
     con_info->recv.pos = (con_info->recv.pos + 1) % psivshmem_recvq_size;
 
-    // if send_tokens() fail, we will retry it in psoib_recvlook.
+    // if send_tokens() fail, we will retry it in psivshmem_recvlook.
     _psivshmem_send_tokens(con_info);
 }
 
@@ -1167,7 +1167,7 @@ int psivshmem_check_cq(hca_info_t *hca_info)
 
 	    psivshmem_outstanding_cq_entries--;
 
-	    if (con->magic == MAGIC_PSIVSHMEM_CONNECTION) {
+	    if (con->magic == MAGIC_IVSHMEM_CONNECTION) {
 		// request from a preallocated RDMA buffer
 		con->outstanding_cq_entries--;
 
@@ -1180,7 +1180,7 @@ int psivshmem_check_cq(hca_info_t *hca_info)
 				 wc.status, ibv_wc_status_str(wc.status));
 		    con->con_broken = 1;
 		}
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
 	    } else {
 		// request from a RDMA write (rendezvous and MPI_Put)
 		psivshmem_rma_req_t *dreq = (psivshmem_rma_req_t *)(unsigned long)wc.wr_id;
@@ -1195,7 +1195,7 @@ int psivshmem_check_cq(hca_info_t *hca_info)
 		dreq->io_done(dreq->priv, failed);
 #endif
 	    }
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
 	} else if (wc.opcode == IBV_WC_RDMA_READ) {
 		psivshmem_rma_req_t *req = (psivshmem_rma_req_t *)(unsigned long)wc.wr_id;
 		int failed = wc.status != IBV_WC_SUCCESS;
@@ -1258,10 +1258,10 @@ int psivshmem_poll(hca_info_t *hca_info, int blocking)
 	rc = psivshmem_check_cq(hca_info);
     } while (blocking && (rc != 0/*VAPI_CQ_EMPTY*/));
 
-//    if (psoib_debug &&
+//    if (ivshmem_debug &&
 //	(rc != VAPI_CQ_EMPTY) &&
 //	(rc != VAPI_OK)) {
-//	fprintf(stderr, "psoib_poll: %s: %s\n", VAPI_strerror_sym(rc), VAPI_strerror(rc));
+//	fprintf(stderr, "psivshmem_poll: %s: %s\n", VAPI_strerror_sym(rc), VAPI_strerror(rc));
 //    }
 
     return (rc == 0 /*VAPI_CQ_EMPTY*/);
@@ -1277,7 +1277,7 @@ void psivshmem_progress(void)
 psivshmem_con_info_t *psivshmem_con_create(void)
 {
 	psivshmem_con_info_t *con_info = malloc(sizeof(*con_info));
-	con_info->magic = MAGIC_PSIVSHMEM_CONNECTION;
+	con_info->magic = MAGIC_IVSHMEM_CONNECTION;
 	return con_info;
 }
 
@@ -1302,7 +1302,7 @@ void psivshmem_con_get_info_msg(psivshmem_con_info_t *con_info /* in */, psivshm
 /*
  * ++ RMA rendezvous begin
  */
-#ifdef IB_USE_RNDV
+#ifdef IVSHMEM_USE_RNDV
 
 static
 int psivshmem_poll(hca_info_t *hca_info, int blocking);
@@ -1342,7 +1342,7 @@ int psivshmem_rma_mreg_deregister(psivshmem_rma_mreg_t *mreg)
 	return 0; /* success */
 }
 
-#ifdef IB_RNDV_USE_MREG_CACHE
+#ifdef IVSHMEM_RNDV_USE_MREG_CACHE
 
 #include "psivshmem_mregion_cache.c"
 
@@ -1362,7 +1362,7 @@ int psivshmem_acquire_rma_mreg(psivshmem_rma_mreg_t *mreg, void *buf, size_t siz
 		if (!mregc) goto err_register;
 
 		psivshmem_mregion_enq(mregc);
-		mregc->use_cnt = 1; /* shortcut for psoib_mregion_use_inc(mreg); */
+		mregc->use_cnt = 1; /* shortcut for psivshmem_mregion_use_inc(mreg); */
 	}
 
 	mreg->mem_info.ptr = buf;
@@ -1463,7 +1463,7 @@ int psivshmem_post_rma_get(psivshmem_rma_req_t *req)
 
 	struct ibv_send_wr *bad_wr;
 
-	perf_add("ivshmem_post_rma_get");
+	perf_add("psivshmem_post_rma_get");
 
 	error = ibv_post_send(req->ci->qp, &wr, &bad_wr);
 	assert(!error);
@@ -1503,7 +1503,7 @@ int psivshmem_post_rma_put(psivshmem_rma_req_t *req)
 
 	struct ibv_send_wr *bad_wr;
 
-	perf_add("ivshmem_post_rma_put");
+	perf_add("psivshmem_post_rma_put");
 
 	error = ibv_post_send(req->ci->qp, &wr, &bad_wr);
 	assert(!error);
@@ -1532,3 +1532,4 @@ int psivshmem_rma_reqs_progress(pscom_poll_reader_t *reader)
 /*
  * -- RMA rendezvous end
  */
+
