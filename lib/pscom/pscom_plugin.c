@@ -119,7 +119,7 @@ void pscom_plugin_register(pscom_plugin_t *plugin, unsigned int user_prio)
 		return; // disabled arch
 	}
 
-	pscom_plugin_t *tmpp = pscom_plugin_by_archid(plugin->arch_id);
+	pscom_plugin_t *tmpp = pscom_plugin_by_archid(plugin->arch_id); //has the plugin for this arch already been registered?!
 	if (tmpp) {
 		DPRINT(2, "Arch id %d already registered (registered:%s, disabled:%s)",
 		       plugin->arch_id, tmpp->name, plugin->name);
@@ -216,7 +216,7 @@ void pscom_plugin_load(const char *arch)
 		struct stat statbuf;
 
 		snprintf(libpath, sizeof(libpath), "%slibpscom4%s.so",
-			 *ld_p, arch);
+			 *ld_p, arch);  // generate string with full library path as string
 
 		if ((*ld_p)[0] && stat(libpath, &statbuf) && errno == ENOENT) {
 			continue;
@@ -225,7 +225,7 @@ void pscom_plugin_load(const char *arch)
 		plugin = load_plugin_lib(libpath);
 
 		if (plugin) {
-			assert(strcmp(arch, plugin->name) == 0);
+			assert(strcmp(arch, plugin->name) == 0); //make sure the arch and plugin-name fit together ->the corret was loaded
 
 			pscom_plugin_register(plugin, uprio);
 			break;
@@ -307,7 +307,7 @@ void pscom_plugins_init(void)
 	struct list_head *pos;
 	list_for_each(pos, &pscom_plugins) {
 		pscom_plugin_t *p = list_entry(pos, pscom_plugin_t, next);
-		if (p->init) p->init();
+		if (p->init) p->init(); //  INIT all plugins !!            #### INIT
 	}
 }
 
