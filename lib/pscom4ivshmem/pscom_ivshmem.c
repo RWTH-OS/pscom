@@ -793,6 +793,20 @@ void ivshmem_init_ivshmem_conn(shm_conn_t *ivshmem)
 	ivshmem->direct_base = NULL;
 }
 
+
+static
+void ivshmem_cleanup_ivshmem_conn(psivshmem_conn_t *ivshmem)
+{
+	if (ivshmem->local_com) shmdt(ivshmem->local_com);
+	ivshmem->local_com = NULL;
+
+	if (ivshmem->remote_com) shmdt(ivshmem->remote_com);
+	ivshmem->remote_com = NULL;
+
+	if (ivshmem->direct_base) shmdt(ivshmem->direct_base);
+	ivshmem->direct_base = NULL;
+}
+
 static
 int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 {
@@ -839,7 +853,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	/* --- */
 err_ack:
 err_local:
-	if (ivshmem.local_com) nnshmdt(ivshmem.local_com);  	// ########???
+	if (ivshmem.local_com) shmdt(ivshmem.local_com);  	// ########???
 	if (ivshmem.remote_com) shmdt(ivshmem.remote_com);	// ########???
 err_remote:
 	return 0;
@@ -947,6 +961,57 @@ dont_use:
 }
 */
 
+
+static
+int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
+{
+	int arch = PSCOM_ARCH_IVSHMEM;
+	psivshmem_conn_t ivshmem;
+	psivshmem_info_msg_t msg;
+	int ack;
+
+	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
+
+	if ((!ivshmem_is_local(con)) || pscom_ivshmem_initrecv(&ivshmem)) {
+		arch = PSCOM_ARCH_ERROR;
+		pscom_writeall(con_fd, &arch, sizeof(arch));
+		goto dont_use; /* Dont use inter vm sharedmem */
+	}
+
+	/* step 1:  Yes, we talk IVSHMEM. */
+	pscom_writeall(con_fd, &arch, sizeof(arch));
+
+	/* step 2: Send ivshmem_id. */
+	pscom_ivshmem_info_msg(&ivshmem, &msg);
+	pscom_writeall(con_fd, &msg, sizeof(msg));
+
+
+	/* step 3: Recv ivshmem_id. */
+	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) ||
+	    msg.ivshmem_id == -1) goto err_remote;
+
+	if (pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_id)) goto err_local;
+
+	pscom_ivshmem_init_direct(&ivshmem, msg.direct_ivshmem_id, msg.direct_base);
+
+	/* step 4: inter VM SHM initialized. Send final ACK. */
+	ack = 0;
+	pscom_writeall(con_fd, &ack, sizeof(ack));
+
+	pscom_ivshmem_init_con(con, con_fd, &ivshmem);
+
+	return 1;
+	/* --- */
+err_local:
+	ack = -1; /* send error */
+	pscom_writeall(con_fd, &ack, sizeof(ack));
+err_remote:
+dont_use:
+	ivshmem_cleanup_ivshmem_conn(&ivshmem);
+	return 0; /* ivshmem failed */
+}
+
+/*
 static
 int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 {
@@ -964,15 +1029,15 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	if (psivshmem_con_init(mcon, NULL, NULL))
 		goto err_con_init;
 
-	/* step 1:  Yes, we talk ivshmem. */
+	/* step 1:  Yes, we talk ivshmem. *
 	pscom_writeall(con_fd, &arch, sizeof(arch));
 
-	/* step 2: Send Connection id's */
+	/* step 2: Send Connection id's *
 	psivshmem_con_get_info_msg(mcon, &msg);
 
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
-	/* step 3 : recv connection id's */
+	/* step 3 : recv connection id's *
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) ||
 	    (msg.lid == 0xffff))
 		goto err_remote;
@@ -980,16 +1045,16 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	if (psivshmem_con_connect(mcon, &msg))
 		goto err_connect_con;
 
-	/* step 4: OPENIVSHMEM mem initialized. Send final ACK. */
+	/* step 4: OPENIVSHMEM mem initialized. Send final ACK. *
 	msg.lid = 0;
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
 	pscom_ivshmem_con_init(con, con_fd, mcon);
 
 	return 1;
-	/* --- */
+	/* --- *
 err_connect_con:
-	/* Send NACK */
+	/* Send NACK *
 	msg.lid = 0xffff;
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 err_remote:
@@ -999,10 +1064,10 @@ out_noivshmem:
 	if (mcon) psivshmem_con_free(mcon);
 	arch = PSCOM_ARCH_ERROR;
 	pscom_writeall(con_fd, &arch, sizeof(arch));
-	return 0; /* Dont use ivshmem */
-	/* --- */
+	return 0; /* Dont use ivshmem *
+	/* --- *
 }
-
+*/
 
 pscom_plugin_t pscom_plugin = {
 	.name		= "ivshmem",
@@ -1013,7 +1078,7 @@ pscom_plugin_t pscom_plugin = {
 	.init		= NULL,					//pscom_ivshmem_init,
 	.destroy	= NULL,
 	.sock_init	= pscom_ivshmem_sock_init, 	 	//NULL,
-	.sock_destroy	= NULL,
+	.sock_destroy	= NULL,  	// ToDo: needs to be implemented!!
 	.con_connect	= pscom_ivshmem_connect,
 	.con_accept	= pscom_ivshmem_accept,
 };
