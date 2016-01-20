@@ -27,12 +27,30 @@ typedef struct port_info port_info_t;
 
 // contact endpoint info
 typedef struct psivshmem_info_msg_s {
-	uint16_t	lid;
-	uint32_t	qp_num;  /* QP number */
-	void		*remote_ptr; /* Info about receive buffers */
-	uint32_t	remote_rkey;
+
+	int ivshmem_id;
+	int direct_ivshmem_id;	/* ivshmem direct shared mem id */
+	void *direct_base;	/* base pointer of the IVM shared mem segment */
+
+//	uint16_t	lid;
+//	uint32_t	qp_num;  /* QP number */
+//	void		*remote_ptr; /* Info about receive buffers */
+//	uint32_t	remote_rkey;
 } psivshmem_info_msg_t;
 
+typedef struct psivshmem_conn_s {
+	psivshmem_com_t	*local_com;  /* local */
+	psivshmem_com_t	*remote_com; /* remote */
+	int		recv_cur;
+	int		send_cur;
+	long		direct_offset; /* base offset for shm direct */
+	int		local_id;
+	int		remote_id;
+	void		*direct_base; /* shm direct base */
+
+	struct list_head pending_io_next_conn; /* next shm_conn_t with pending io. Head: shm_pending_io.shm_conn_head */
+	struct ivshmem_pending *ivshmem_pending; /* first pending io request of this connection */
+} psivshmem_conn_t;
 
 typedef struct {
     void *ptr;

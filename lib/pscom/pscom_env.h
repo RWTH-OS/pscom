@@ -140,6 +140,9 @@
 /* Use shm direct for messages >= PSP_SHM_DIRECT. Set PSP_SHM_DIRECT=-1 to disable shm direct. */
 #define ENV_SHM_DIRECT "PSP_SHM_DIRECT" /* min message size to use shm direct */
 
+/* Use ivshmem direct for messages >= PSP_IVSHMEM_DIRECT. Set PSP_IVSHMEM_DIRECT=-1 to disable shm direct. */
+#define ENV_IVSHMEM_DIRECT "PSP_IVSHMEM_DIRECT" /* min message size to use ivshmem direct */
+
 /* Manage a list of all requests for debug dumps (decrease performance!) */
 #define ENV_DEBUG_REQ     "PSP_DEBUG_REQ"
 

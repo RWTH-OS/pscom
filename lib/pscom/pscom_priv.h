@@ -335,7 +335,7 @@ struct PSCOM_sock
 	p4s_sock_t		p4s;
 //	psib_sock_t		mvapi;
 //	psoib_sock_t		openib;
-//	psivshmem_sock_t	ivshmem;
+	psivshmem_sock_t	ivshmem;
 //	psofed_sock_t		ofed;
 	psgm_sock_t		gm;
 //	psdapl_sock_t		dapl;
@@ -381,6 +381,10 @@ struct PSCOM
 		unsigned int	shm_direct;	// successful shm direct sends
 		unsigned int	shm_direct_nonshmptr; // shm direct with copy because !is_psshm_ptr(data)
 		unsigned int	shm_direct_failed; // failed shm direct because !is_psshm_ptr(malloc(data))
+		
+		unsigned int	ivshmem_direct;	// successful ivshmem direct sends
+		unsigned int	ivshmem_direct_nonshmptr; // ivshmem direct with copy because !is_psshm_ptr(data)
+		unsigned int	ivshmem_direct_failed; // failed ivshmem direct because !is_psshm_ptr(malloc(data))
 	}			stat;
 };
 
@@ -564,4 +568,4 @@ void pscom_listener_active_dec(struct pscom_listener *listener);
 const char *pscom_con_str_reverse(pscom_connection_t *connection);
 
 #endif /* _PSCOM_PRIV_H_ */
-
+			
