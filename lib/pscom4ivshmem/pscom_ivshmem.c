@@ -35,6 +35,22 @@
 #include "pscom_req.h"
 #include "pscom_util.h"
 
+
+#if defined(__x86_64__) && !(defined(__KNC__) || defined(__MIC__))
+/* We need memory barriers only for x86_64 (?) */
+#define ivshmem_mb()    asm volatile("mfence":::"memory")
+#elif defined(__ia64__)
+#define ivshmem_mb()    asm volatile ("mf" ::: "memory")
+#else
+/* Dont need it for ia32, alpha (?) */
+#define ivshmem_mb()    asm volatile ("" :::"memory")
+#endif
+
+/*################################################################################################*/
+
+
+
+
 static 
 unsigned ivshmem_direct = 400;
 
@@ -43,6 +59,13 @@ struct {
 	struct pscom_poll_reader poll_reader; // calling shm_poll_pending_io(). Used if !list_empty(shm_conn_head)
 	struct list_head	ivshmem_conn_head; // shm_conn_t.pending_io_next_conn.
 } ivshmem_pending_io;
+
+
+struct ivshmem_direct_header {
+	void	*base;
+	size_t	len;
+};
+
 
 static
 int pscom_ivshmem_initrecv(psivshmem_conn_t *ivshmem)
@@ -122,6 +145,7 @@ int pscom_poll_cq(pscom_poll_reader_t *reader)
 	return 0;
 }
 */
+/*
 static inline
 void pscom_check_cq_poll(void)
 {
@@ -134,13 +158,13 @@ void pscom_check_cq_poll(void)
 		list_add_tail(&pscom_cq_poll.next, &pscom.poll_reader);
 	}
 }
-
+*/
 
 static inline
 uint32_t pscom_ivshmem_canrecv(psivshmem_conn_t *ivshmem)
 {
 	int cur = ivshmem->recv_cur;
-	ivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // ##########################
+	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // +++++
 	return ivshmembuf->header.msg_type;
 }
 
@@ -152,7 +176,7 @@ static inline
 void pscom_ivshmem_recvstart(psivshmem_conn_t *ivshmem, char **buf, unsigned int *len)
 {
 	int cur = ivshmem->recv_cur;
-	ivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // ##########################
+	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // +++++
 
 	*len = ivshmembuf->header.len;
 	*buf = IVSHMEM_DATA(ivshmembuf, *len);
@@ -174,7 +198,7 @@ void pscom_ivshmem_recvstart_direct(psivshmem_conn_t *ivshmem, struct iovec iov[
 	iov[0].iov_base = data;
 	iov[0].iov_len = len;
 
-	struct ivshmem_direct_header *dh = (struct ivshmem_direct_header *)(data - sizeof(*dh)); // ############
+	struct ivshmem_direct_header *dh = (struct ivshmem_direct_header *)(data - sizeof(*dh)); // +++++ defined in this *.c file
 
 	iov[1].iov_base = dh->base + ivshmem->direct_offset;
 	iov[1].iov_len = dh->len;
@@ -187,7 +211,7 @@ void pscom_ivshmem_recvdone(psivshmem_conn_t *ivshmem)
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
 
-	shm_mb();	// #####################################
+	shm_mb();	// +++++ macro
 
 	/* Notification: message is read */
 	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_NONE;
@@ -203,7 +227,7 @@ void pscom_ivshmem_recvdone_direct(psivshmem_conn_t *ivshmem)
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
 
-	shm_mb();  	// ##########################################
+	shm_mb();  	// +++++ macro
 
 	/* Notification: message is read */
 	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_DIRECT_DONE;
@@ -278,6 +302,46 @@ int pscom_ivshmem_do_read(pscom_poll_reader_t *reader)
 }
 */
 
+static
+void pscom_ivshmem_pending_io_conn_enq(psivshmem_conn_t *ivshmem)
+{
+	if (list_empty(&ivshmem_pending_io.ivshmem_conn_head)) {
+		// Start polling for pending_io
+		list_add_tail(&ivshmem_pending_io.poll_reader.next, &pscom.poll_reader);
+	}
+	list_add_tail(&ivshmem->pending_io_next_conn, &ivshmem_pending_io.ivshmem_conn_head);
+}
+
+
+/*
+ * Enqueue a pending shared mem operation msg on connection con.
+ *
+ * After the io finishes call:
+ *  - pscom_write_pending_done(con, req), if req != NULL
+ *  - free(data), if data != NULL
+ * see shm_check_pending_io().
+ */
+static
+void pscom_ivshmem_pending_io_enq(pscom_con_t *con, psivshmem_msg_t *msg, pscom_req_t *req, void *data)
+{
+	psivshmem_conn_t *ivshmmem = &con->arch.ivshmem;
+	struct ivshmem_pending *ivp = malloc(sizeof(*ivp));
+	struct ivshmem_pending *old_ivp;
+	ivp->next = NULL;
+	ivp->con = con;
+	ivp->msg = msg;
+	ivp->req = req;
+	ivp->data = data;
+
+	if (!ivshmem->ivshmem_pending) {
+		pscom_ivshmem_pending_io_conn_enq(shm); // +++++
+		ivshmem->ivshmem_pending = ivp;
+	} else {
+		// Append at the end
+		for (old_ivp = ivshmem->ivshmem_pending; old_ivp->next; old_ivp = old_ivp->next); // +++
+		old_ivp->next = ivp;
+	}
+}
 
 static
 void pscom_ivshmem_do_write(pscom_con_t *con)
@@ -286,11 +350,11 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 	struct iovec iov[2];
 	pscom_req_t *req;
 
-	req = pscom_write_get_iov(con, iov);  // ###########################################
+	req = pscom_write_get_iov(con, iov);  // pscom_io.c
 
-	if (req && pscom_ivshmem_cansend(&con->arch.ivshmem)) {   // ###########################
+	if (req && pscom_ivshmem_cansend(&con->arch.ivshmem)) {   // +++++
 		if (iov[1].iov_len < ivshmem_direct ||
-		    iov[0].iov_len > (IVSHMEM_BUFLEN - sizeof(struct ivshmem_direct_header))) { // #########
+		    iov[0].iov_len > (IVSHMEM_BUFLEN - sizeof(struct ivshmem_direct_header))) { // +++++
 		do_buffered_send:
 
 			/* Buffered send : Send through the send & receive buffers. */
@@ -298,20 +362,20 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			len = iov[0].iov_len + iov[1].iov_len;
 			len = pscom_min(len, IVSHMEM_BUFLEN);
 
-			ivshmem_iovsend(&con->arch.ivshmem, iov, len);  // ########################
+			pscom_ivshmem_iovsend(&con->arch.ivshmem, iov, len);  // +++++
 
 			pscom_write_done(con, req, len);
-		} else if (is_psivshmem_ptr(iov[1].iov_base)) { // ################################
+		} else if (is_psivshmem_ptr(iov[1].iov_base)) { // +++++
 			/* Direct send : Send a reference to the data iov[1]. */
 
-			psivshmem_msg_t *msg = ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // ########
+			psivshmem_msg_t *msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
 
 			pscom_write_pending(con, req, iov[0].iov_len + iov[1].iov_len);
 
 			/* The shm_iovsend_direct is active as long as msg->msg_type == IVSHMEM_MSGTYPE_DIRECT.
 			   We have to call pscom_write_pending_done(con, req) when we got the ack msg_type == SHM_MSGTYPE_DIRECT_DONE. */
 
-			ivshmem_pending_io_enq(con, msg, req, NULL); // #######################
+			pscom_ivshmem_pending_io_enq(con, msg, req, NULL); // +++++
 
 			pscom.stat.ivshmem_direct++;  // ADDED to struct
 		} else {
@@ -321,7 +385,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			void *data;
 			psivshmem_msg_t *msg;
 
-			if (!is_psivshmem_enabled()) goto do_buffered_send; // Direct shm is disabled.############
+			if (!is_psivshmem_enabled()) goto do_buffered_send; // Direct shm is disabled.
 
 			data = malloc(iov[1].iov_len); // try to get a buffer inside the shared mem region ~~~~~~~~~~~~~~~~~~~~~~~~~~~~+++++++++++
 
@@ -335,11 +399,11 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			memcpy(data, iov[1].iov_base, iov[1].iov_len);
 			iov[1].iov_basivshmem data;
 
-			msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // ######################
+			msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
 
 			pscom_write_done(con, req, iov[0].iov_len + iov[1].iov_len);
 
-			pscom_ivshmem_pending_io_enq(con, msg, NULL, data);  // ###############################
+			pscom_ivshmem_pending_io_enq(con, msg, NULL, data);  // +++++
 
 
 			/* Count messages which should but cant be send with direct_send.
@@ -387,6 +451,8 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 /*
  * ++ RMA rendezvous begin
  */
+
+/*
 #ifdef IVSHMEM_USE_RNDV
 
 typedef struct pscom_rendezvous_data_ivshmem {
@@ -425,7 +491,7 @@ unsigned int pscom_ivshmem_rma_mem_register(pscom_con_t *con, pscom_rendezvous_d
 
 	memcpy(rd->msg.arch.ivshmem.padding_data, rd->msg.data, rd->msg.arch.ivshmem.padding_size);
 
-	/* get mem region */
+	/* get mem region *
 	perf_add("ivshmem_acquire_rma_mreg");
 	err = psivshmem_acquire_rma_mreg(mreg, rd->msg.data + rd->msg.arch.ivshmem.padding_size, rd->msg.data_len - rd->msg.arch.ivshmem.padding_size, ci);
 	assert(!err);
@@ -438,7 +504,7 @@ unsigned int pscom_ivshmem_rma_mem_register(pscom_con_t *con, pscom_rendezvous_d
 	return sizeof(rd->msg.arch.ivshmem) - sizeof(rd->msg.arch.ivshmem.padding_data) + rd->msg.arch.ivshmem.padding_size;
 #else
 
-	/* get mem region */
+	/* get mem region *
 	perf_add("ivshmem_acquire_rma_mreg2");
 	err = psivshmem_acquire_rma_mreg(mreg, rd->msg.data, rd->msg.data_len, ci);
 	assert(!err);
@@ -543,7 +609,7 @@ void pscom_ivshmem_rma_write_io_done(void *priv, int err)
  * To:
  *   (rd_des->msg.data, rd_des->msg.data_len)
  *   rd_des->msg.arch.ivshmem.{mr_key, mr_addr}
- */
+ *
 
 static
 int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t *des,
@@ -566,7 +632,7 @@ int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t 
 	dreq->mreg.mem_info.ptr = xxx;
 	dreq->mreg.size = xxx;
 	dreq->mreg.mem_ingo.mr->lkey = xxx;
-*/
+*
 	perf_add("ivshmem_rma_write");
 
 	dreq->remote_addr = des->arch.ivshmem.mr_addr;
@@ -583,11 +649,14 @@ int pscom_ivshmem_rma_write(pscom_con_t *con, void *src, pscom_rendezvous_msg_t 
 	err = psivshmem_post_rma_put(dreq);
 	assert(!err); // ToDo: Catch error
 	rd_data = NULL; /* Do not use rd_data after psivshmem_post_rma_put()!
-			   io_done might already be called and freed rd_data. */
+			   io_done might already be called and freed rd_data. *
 
 	return 0;
 }
 #endif
+
+/*
+
 /*
  * -- RMA rendezvous end
  */
@@ -705,6 +774,56 @@ void pscom_ivshmem_con_init(pscom_con_t *con, int con_fd,
 /*********************************************************************/
 
 
+
+static
+void pscom_ivshmem_pending_io_conn_deq(psivshmem_conn_t *ivshmem)
+{
+	list_del(&ivshmem->pending_io_next_conn);
+	if (list_empty(&ivshmem_pending_io.ivshmem_conn_head)) {
+		// No shm_conn_t with pending io requests left. Stop polling for pending_io.
+		list_del(&ivshmem_pending_io.poll_reader.next);
+	}
+}
+
+static
+void pscom_ivshmem_check_pending_io(psivshmem_conn_t *ivshmem)
+{
+	struct ivshmem_pending *ivp;
+	while (((ivp = ivshmem->ivshmem_pending)) && ivp->msg->msg_type == IVSHMEM_MSGTYPE_DIRECT_DONE) {
+		// finish request
+		if (ivp->req) pscom_write_pending_done(ivp->con, ivp->req); // direct send done
+		if (ivp->data) free(ivp->data); // indirect send done
+
+		// Free buffer for next send
+		ivp->msg->msg_type = IVSHMEM_MSGTYPE_NONE;
+
+		// loop next sp
+		ivshmem->ivshmem_pending = ivp->next;
+		free(ivp);
+
+		if (!ivshmem->ivshmem_pending) {
+			// shm_conn_t is without pending io requests.
+			pscom_ivshmem_pending_io_conn_deq(shm);
+			break;
+		}
+	}
+}
+
+static
+int pscom_ivshmem_poll_pending_io(pscom_poll_reader_t *poll_reader)
+{
+	struct list_head *pos, *next;
+	// For each shm_conn_t shm
+	list_for_each_safe(pos, next, &ivshmem_pending_io.ivshmem_conn_head) {
+		psivshmem_conn_t *ivshmem = list_entry(pos, psivshmem_conn_t, pending_io_next_conn);
+
+		pscom_ivshmem_check_pending_io(shm);
+	}
+	return 0;
+}
+
+
+
 void pscom_ivshmem_sock_init(pscom_sock_t *sock)
 {
 	if (psivshmem_info.size) {
@@ -715,7 +834,7 @@ void pscom_ivshmem_sock_init(pscom_sock_t *sock)
 		ivshmem_direct = (unsigned)~0;
 	}
 
-	ivshmem_pending_io.poll_reader.do_read = ivshmem_poll_pending_io;
+	ivshmem_pending_io.poll_reader.do_read = pscom_ivshmem_poll_pending_io;
 	INIT_LIST_HEAD(&ivshmem_pending_io.ivshmem_conn_head);
 }
 
@@ -729,6 +848,89 @@ void pscom_ivshmem_info_msg(ivshmem_conn_t *ivshmem, ivshmem_info_msg_t *msg)
 }
 
 
+
+static inline
+int pscom_ivshmem_cansend(psivshmem_conn_t *ivshmem)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+	return ivshmembuf->header.msg_type == IVSHMEM_MSGTYPE_NONE;
+}
+
+
+static
+void pscom_ivshmem_send(psivshmem_conn_t *ivshmem, char *buf, int len)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];  // sind header sauber aufgeteilt????? 
+
+	/* copy to sharedmem */
+	memcpy(IVSHMEM_DATA(ivshmembuf, len), buf, len);
+	ivshmembuf->header.len = len;
+
+	ivshmem_mb(); // +++++
+
+	/* Notification about the new message */
+	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_STD;
+	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
+}
+
+
+/* send iov.
+   Call only if shm_cansend() == true (no check inside)!
+   len must be smaller or equal SHM_BUFLEN!
+*/
+static
+void pscom_ivshmem_iovsend(psivshmem_conn_t *ivshmem, struct iovec *iov, int len)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+
+	/* copy to sharedmem */
+	pscom_memcpy_from_iov(IVSHMEM_DATA(ivshmembuf, len), iov, len);  // def in pscom_util.h
+	ivshmembuf->header.len = len;
+
+	ivshmem_mb();
+
+	/* Notification about the new message */
+	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_STD;
+	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
+}
+
+
+/* send iov.
+   Call only if shm_cansend() == true (no check inside)!
+   iov[0].iov_len must be smaller or equal SHM_BUFLEN - sizeof(struct shm_direct_header)!
+   is_psshm_ptr(iov[1].iov_base) must be true.
+*/
+
+
+static
+psivshmem_msg_t *pscom_ivshmem_iovsend_direct(psivshmem_conn_t *ivshmem, struct iovec *iov)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+	size_t len0 = iov[0].iov_len;
+	char *data = IVSHMEM_DATA(ivshmembuf, len0);
+
+	/* reference to iov[1] before header */
+	struct ivshmem_direct_header *dh = (struct ivshmem_direct_header *)(data - sizeof(*dh));
+	dh->base = iov[1].iov_base;
+	dh->len = iov[1].iov_len;
+
+	/* copy header to sharedmem */
+	memcpy(data, iov[0].iov_base, len0);
+	ivshmembuf->header.len = len0;
+
+	ivshmem_mb();
+
+	/* Notification about the new message */
+	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_DIRECT;
+	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
+
+	return &ivshmembuf->header;
+}
+
 static
 void pscom_ivshmem_close(pscom_con_t *con)
 {
@@ -738,8 +940,8 @@ void pscom_ivshmem_close(pscom_con_t *con)
 
 		for (i = 0; i < 5; i++) {
 			// ToDo: Unreliable EOF
-			if (pscom_ivshmem_cansend(ivshmem)) { // #################################
-				pscom_ivshmem_send(ivshmem, NULL, 0); // #########################
+			if (pscom_ivshmem_cansend(ivshmem)) { // +++++
+				pscom_ivshmem_send(ivshmem, NULL, 0); // +++++
 				break;
 			} else {
 				usleep(5*1000);
@@ -747,7 +949,7 @@ void pscom_ivshmem_close(pscom_con_t *con)
 			}
 		}
 
-		pscom_ivshmem_cleanup_ivshmem_conn(ivshmem); // ##################################
+		ivshmem_cleanup_ivshmem_conn(ivshmem); // +++++
 
 		assert(list_empty(&con->poll_next_send));
 		assert(list_empty(&con->poll_reader.next));

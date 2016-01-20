@@ -169,10 +169,10 @@ typedef struct pscom_rendezvous_msg {
 		} openib;
 		
 		struct {			// #### ADDED ####
-			uint32_t mr_key;
-			uint64_t mr_addr;
-			int padding_size;
-			char padding_data[64]; 
+			//uint32_t mr_key;
+			//uint64_t mr_addr;	// <=> shm
+			//int padding_size;
+			//char padding_data[64];  
 		} ivshmem;
 
 

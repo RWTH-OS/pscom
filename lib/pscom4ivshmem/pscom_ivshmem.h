@@ -51,6 +51,9 @@
 
 #define IVSHMEM_DATA(buf, len) ((char*)(&(buf)->header) - (((len) + 7) & ~7))
 
-
+typedef struct psivshmem_buf_s {
+	uint8_t _data[SHM_BUFLEN];
+	shm_msg_t header;
+} psivshmem_buf_t;
 
 #endif /* _PSCOM_IVSHMEM_H_ */
