@@ -51,7 +51,7 @@ int psivshmem_init_base(void)
 	size_t size = psivshmem_config.max_size;
 
 	while (1) {
-		ivshmemid = ivshmemget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
+		ivshmemid = shmget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
 		if (ivshmemid != -1) break; // success with size bytes
 		if (errno != ENOSPC && errno != EINVAL) goto err; // error, but not "No space left on device" or EINVAL
 		size = size * 3 / 4; // reduce allocated size
