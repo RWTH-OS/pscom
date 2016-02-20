@@ -307,7 +307,7 @@ void pscom_plugins_init(void)
 	struct list_head *pos;
 	list_for_each(pos, &pscom_plugins) {
 		pscom_plugin_t *p = list_entry(pos, pscom_plugin_t, next);
-		if (p->init) p->init(); //  INIT all plugins !!            #### INIT
+		if (p->init) p->init(); //  INIT all plugins if p->init != 0 !!  Else socket_init          
 	}
 }
 

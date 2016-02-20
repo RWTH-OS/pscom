@@ -38,6 +38,18 @@ typedef struct psivshmem_info_msg_s {
 //	uint32_t	remote_rkey;
 } psivshmem_info_msg_t;
 
+
+
+typedef struct psivshmem_buf_s {
+	uint8_t _data[IVSHMEM_BUFLEN];
+	psivshmem_msg_t header;
+} psivshmem_buf_t;
+
+typedef struct ivshmem_com_s {
+	psivshmem_buf_t	buf[IVSHMEM_BUFS];
+} psivshmem_com_t;
+
+
 typedef struct psivshmem_conn_s {
 	psivshmem_com_t	*local_com;  /* local */
 	psivshmem_com_t	*remote_com; /* remote */

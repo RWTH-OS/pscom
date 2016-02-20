@@ -94,10 +94,12 @@ typedef struct psoib_conn {
 } psoib_conn_t;
 
 
+/*old openib->ivshmem namespace translation*/
+/*
 typedef struct psivshmem_conn {
 	struct psivshmem_con_info *mcon;
 } psivshmem_conn_t;
-
+*/
 
 typedef struct psofed_conn {
 	struct psofed_con_info *mcon;

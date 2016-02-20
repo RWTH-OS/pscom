@@ -81,7 +81,7 @@ int pscom_ivshmem_initrecv(psivshmem_conn_t *ivshmem)
 
 	shmctl(ivshmemid, IPC_RMID, NULL); /* remove shmid after usage */
 
-	memset(buf, 0, sizeof(psivshmem_com_t)); /* init */
+	memset(buf, 0, sizeof(psivshmem_com_t)); /* init */  // with zeros
 
 	ivshmem->local_id = ivshmemid;
 	ivshmem->local_com = (psivshmem_com_t *)buf;
@@ -279,9 +279,9 @@ void pscom_ivshmem_pending_io_enq(pscom_con_t *con, psivshmem_msg_t *msg, pscom_
 static
 void pscom_ivshmem_do_write(pscom_con_t *con)
 {
-	unsigned int len;
-	struct iovec iov[2];
-	pscom_req_t *req;
+	unsigned int len;	// Länge
+	struct iovec iov[2];	// vectored I/O
+	pscom_req_t *req;	// pscom request type
 
 	req = pscom_write_get_iov(con, iov);  // pscom_io.c
 
@@ -551,9 +551,9 @@ void pscom_ivshmem_init_con(pscom_con_t *con,
 	con->read_start = pscom_poll_read_start;
 	con->read_stop = pscom_poll_read_stop;
 
-	con->poll_reader.do_read = shm_do_read;  	// +++++
-	con->do_write = pscom_ivshmem_do_write;		// +++++
-	con->close = pscom_ivshmem_close;		// +++++ 
+	con->poll_reader.do_read = pscom_ivshmem_do_read;  	// +++++
+	con->do_write = pscom_ivshmem_do_write;			// +++++
+	con->close = pscom_ivshmem_close;			// +++++ 
 
 	con->rendezvous_size = pscom.env.rendezvous_size_ivshmem;
 }
@@ -566,9 +566,9 @@ int ivshmem_is_local(pscom_con_t *con)
 
 
 static
-void ivshmem_init_ivshmem_conn(shm_conn_t *ivshmem)
+void ivshmem_init_ivshmem_conn(psivshmem_conn_t *ivshmem)
 {
-	memset(ivshmem, 0, sizeof(*ivshmem));
+	memset(ivshmem, 0, sizeof(*ivshmem));  // set memory to ZERO 
 	ivshmem->local_com = NULL;
 	ivshmem->remote_com = NULL;
 	ivshmem->direct_base = NULL;
@@ -597,19 +597,19 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	int err;
 	int ack;
 
-	if (!ivshmem_is_local(con)) 
+	if (!ivshmem_is_local(con)) // ivshmem_is_local() checks if partner has same nodeID => same node => if not same node return 0; because SHM not possible 
 		return 0; /* Dont use sharedmem */
 
 	/* talk ivshmem? */
-	pscom_writeall(con_fd, &arch, sizeof(arch));
+	pscom_writeall(con_fd, &arch, sizeof(arch)); // write which connection architecure I am using...
 
 	/* step 1 */
 	if ((pscom_readall(con_fd, &arch, sizeof(arch)) != sizeof(arch)) ||
-	    (arch != PSCOM_ARCH_IVSHMEM))
+	    (arch != PSCOM_ARCH_IVSHMEM))   /*error if partner is using other architecture (means not installed shm or not same host*/
 		goto err_remote;
 
 	/* step 2 : recv ivshmem_id */
-	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)))
+	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)))  /*read connection message from partner (especially ID) */
 		goto err_remote;
 
 	ivshmem_init_ivshmem_conn(&ivshmem);
@@ -629,6 +629,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 
 
 	pscom_ivshmem_init_con(con, con_fd, &ivshmem);
+
 
 	return 1;
 	/* --- */

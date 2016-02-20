@@ -767,7 +767,7 @@ pscom_err_t pscom_con_connect_via_tcp(pscom_con_t *con, int nodeid, int portno)
 
 	struct list_head *pos;
 
-	/* Search for "best" connections */
+	/* Search for "best" connections */  /*seems like plugin_list is sorted by priority!*/
 	list_for_each(pos, &pscom_plugins) {
 		pscom_plugin_t *p = list_entry(pos, pscom_plugin_t, next);
 
@@ -906,7 +906,8 @@ pscom_err_t pscom_connect(pscom_connection_t *connection, int nodeid, int portno
 
 
 	pscom_lock(); {
-		if (pscom_is_local(con->pub.socket, nodeid, portno)) {
+		if (pscom_is_local(con->pub.socket, nodeid, portno)) {/*check if connection leads to loopback*/
+			/*-> loopback connection*/
 			rc = pscom_con_connect_loopback(con);
 		} else {
 			/* Initial connection via TCP */
