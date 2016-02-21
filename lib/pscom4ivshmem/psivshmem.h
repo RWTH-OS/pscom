@@ -28,7 +28,7 @@ typedef struct ivshmem_pci_dev_s {
 	char str_map1_size_hex[50];
 	long int map1_size_Byte;
 	float  map1_size_MiB;
-	void iv_shm_base;
+	void* iv_shm_base;
 	
 } ivshmem_pci_dev_t;
 

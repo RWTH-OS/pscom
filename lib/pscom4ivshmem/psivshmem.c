@@ -37,7 +37,7 @@ int psreadline_from_file(char *fname, char *lbuf) //(filename, linebufer)
 	return 0;
 }
 
-int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev) 
+int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) device 
 
     int n;
     int dev_fd;
@@ -157,7 +157,7 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
 	//check if pointer has a plausible value <-> ptr != 0
 	
 	// return index of first free frame belonging to a block of at least N free frames! 
-	if (cnt >= (size) {
+	if (cnt >= size) {
 	return (n - cnt); // return index of first free frame belonging to a block of at least N free frames! 
 	}
     }
@@ -166,7 +166,7 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
 
 }
 
-int free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
+int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 {
 /*
  * first implementation: just clear corresponding bit in bitmap -> frame is available
@@ -188,6 +188,32 @@ int free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 
 }
 
+int psivhmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
+{
+/*
+ * first implementation: just clear corresponding bit in bitmap -> frame is available
+ *
+ * [---ToDo2: clear VM ID in every frame---]
+ *
+ * "a = b/c"  int division round up
+ * int a = (b + (c - 1)) / c  <- rounds up for positiv int, e.g. frameIndices
+ *
+ *
+ */
+    int n; 
+    int index_low, index_high;
+    unsigned *bitmap = (unsigned int*)(dev->iv_shm_base + dev->metadata->bitmapOffset);
+
+    index_low = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize; //has to be a multiple of it!
+    index_high = (frame_ptr - dev->iv_shm_base + size + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
+ 
+    while(sem_wait(&dev->metadata->semaphore));
+        for(n = index_low; n<=index_high;n++) {  //'unlock' all N used frames 	
+	    CLR_BIT(bitmap, n);
+	}
+    sem_post(&dev->metadata->semaphore);
+
+}
 
 void *alloc_frame(ivshmem_pci_dev_t *dev)
 {   
@@ -218,7 +244,7 @@ void *alloc_frame(ivshmem_pci_dev_t *dev)
 
 //ToDo: move frameSize to ivshmem_dev infos!
 
-void *alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
+void *psivshmem_alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
 {
     int n;
     int index;
