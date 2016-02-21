@@ -1,5 +1,5 @@
 /*
- * Author:
+ * Author: JonBau
  */
 
 
@@ -11,40 +11,24 @@
 #include <unistd.h>
 #include <assert.h>
 #include <sys/resource.h> // getrlimit
-
-/* #include <sysfs/libsysfs.h> */
-
-#include "list.h"
-#ifndef IVSHMEM_DONT_USE_ZERO_COPY
+//#ifndef IVSHMEM_DONT_USE_ZERO_COPY
 #include "pscom_priv.h"
-#endif
+//#endif
 #include "pscom_util.h"
 #include "perf.h"
 #include "psivshmem.h"
-#include <infiniband/verbs.h>
-
-
-typedef struct ivshmem_pci_dev_s {
-	int uioN_index;
-	char name[50];
-	char version[50];
-	char str_map1_size_hex[50];
-	long int map1_size_Byte;
-	float  map1_size_MiB;
-	void iv_shm_base;
-	
-} ivshmem_pci_dev_t;
+#include <semaphore.h>
 
 
 static
-int line_from_file(char *filename, char *linebuf) //from opensource... uio device info
+int psreadline_from_file(char *fname, char *lbuf) //(filename, linebufer) 
 {
 	char *s;
 	int i;
-	memset(linebuf, 0, UIO_MAX_NAME_SIZE);
-	FILE* file = fopen(filename,"r");
+	memset(lbuf, 0, UIO_MAX_NAME_SIZE);
+	FILE* file = fopen(fname,"r");
 	if (!file) return -1;
-	s = fgets(linebuf,UIO_MAX_NAME_SIZE,file);
+	s = fgets(lbuf,UIO_MAX_NAME_SIZE,file);
 	if (!s) return -2;
 	for (i=0; (*s)&&(i<UIO_MAX_NAME_SIZE); i++) {
 		if (*s == '\n') *s = 0;
@@ -53,13 +37,7 @@ int line_from_file(char *filename, char *linebuf) //from opensource... uio devic
 	return 0;
 }
 
-
-
-
-int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
-
-
-    
+int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev) 
 
     int n;
     int dev_fd;
@@ -72,7 +50,7 @@ int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
 
     char expectedDeviceName[20] = "ivshmem";
 
-    for(n = 0; n<1001;n++)
+    for(n = 0; n<1001;n++) //avoid infinite loop
     {
 	
       	sprintf(file_path, "/sys/class/uio/uio%d/name", n);
@@ -81,10 +59,10 @@ int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
 	if (!fd){ goto no_device;}
 	fclose(fd);	
 
-    	line_from_file(file_path,dev->name);	// check name
+    	psreadline_from_file(file_path,dev->name);	// check name
 	if (strncmp(dev->name, expectedDeviceName,7))  
 	{
-		printf("cont...");
+		printf("cont...\n");
 		continue; // wrong device name -> try next
 	}
     
@@ -98,7 +76,7 @@ int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
 
 
    	sprintf(file_path, "/sys/class/uio/uio%d/maps/map1/size", n);
-    	line_from_file(file_path, dev->str_map1_size_hex);
+    	psreadline_from_file(file_path, dev->str_map1_size_hex);
    
      	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
     	dev->map1_size_Byte = strtol(dev->str_map1_size_hex, NULL, 0);
@@ -106,11 +84,17 @@ int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
     	dev->map1_size_MiB   =  dev->map1_size_Byte / (float)1024 / (float)1024; // Byte -> KiB -> MiB
 
     	sprintf(file_path, "/sys/class/uio/uio%d/version", n);
-    	line_from_file(file_path,dev->version);
+    	psreadline_from_file(file_path,dev->version);
    
  
         void *map_addr = mmap(NULL,dev->map1_size_Byte, PORT_READ | PORT_WRITE, MAP_SHARED, dev_fd,1 * getpagesize());  // last param. overloaded for ivshmem -> 2 memorysegments available; Reg.= 0;  Data = 1;
 	
+
+	dev->metadata = (meta_data_t *) map_addr;  //map metadata!
+
+	if(dev->metadata->magic != META_MAGIC) goto not_initialised; 
+	
+
 	//add map to device struct
 	//
 	//add Reg memory -> VM ID
@@ -124,104 +108,25 @@ int psivshmem_find_uio_device(ivshmem_pci_dev_t *dev)
    */	
 
 
-     	close(dev_fd);
+    // 	close(dev_fd); //keep dev_fd alive!
     	fclose(fd);
 	return 0;
 
     }
 
-
+not_initialised:
+    printf("Unable to find initialised metadata\n");
+    return -1;
 no_device:
     //fclose(fd); //quatsch, -> file konnte ja gar nicht geoeffnet werden!
     printf("no suitable pci dev\n");
     return -1;
 device_error:
-    printf("device not available")
-
-}
-
-
-#define META_MAGIC 20101992
-#define META_MAGIC_OFFSET 10
-#define META_LOCK_OFFSET 12  // ??!!
-#define META_BITMAP_SIZE_OFFSET 14
-#define BITMAP_OFFSET 16
-
-
-#define IVSHMEM_FRAMESIZE 40 //in Byte
-#define WORD_SIZE (CHAR_BIT * sizeof(int))
-#define TOTAL_BITS 1000000
-//#define SETBIT(b,n) ((b)[(n)/WORD_SIZE] |= (1 << ((n) % WORD_SIZE)))
-#define SET_BIT(b,n) ((b)[(n)/WORD_SIZE] |= (1 << ((n) % WORD_SIZE)))
-#define CLR_BIT(b,n)  ((b)[(n)/WORD_SIZE] &= ~(1 << ((n) % WORD_SIZE)))
-
-
-int psivshmem_ceate_matadata(ivshme_pci_dev_t *dev)
-{
-  
-    int n;
-    int *magic = dev->iv_shm_base + META_MAGIC_OFFSET; 
-    int *meta_lock = dev->iv_shm_base + META_LOCK_OFFSET;
-    int *bitmap_size = dev->iv_shm_base + META_BITMAP_SIZE_OFFSET;	
-    unsigned *bitmap = dev_iv_shm_base + BITMAP_OFFSET;
-
-    
-
-    if ( *magic == META_MAGIC)  // metadata already initilized
-    {
+    printf("device not available\n");
     return -1;
-    }
-    
-    while(*meta_lock);  // "active wait"   <- useless
-    *meta_lock = 1;	// lock metadata
- 
-/*
- * 
- * totalNumberOfFrames = map1_size_Bayte / IVSHMEM_FRAMESIZE;
- * neededInts = totalNumberofFrames / BitsPerInt; 
- * int Bitmap[neededInts] 
- *
- * */
-
-
-	
-    int numOfFrames = (dev->map1_size_Byte / IVSHMEM_FRAMESIZE);
-    if (dev->map1_size_Byte % IVSHMEM_FRAMESIZE) numOfFrames++;
-    	
-
-//    int Bitmap[neededInts];     
-//    unsigned bitmap[TOTAL_BITS / WORD_SIZE +1] = {0};
-/*
- *  size_t index  = nbit / (sizeof(bitmap_data_t) * 8);
- *      size_t bitpos = nbit % (sizeof(bitmap_data_t) * 8);
- *
- *
- * */
-   
-
- // SETBIT(bitmap,50);
-    
-    
-      //set own frames to: used!
-      //make sure, that the BITMAP is always at the end of metadata!
-    
-     int metaDataSize = (BITMAP_OFFSET + *bitmap_size) / IVSHMEM_FRAMESIZE; 
-     if ((BITMAP_OFFSET + *bitmap_size) / IVSHMEM_FRAMESIZE) metaDataSize += 1;  //?? runtim vs. memory!!
-    
-     for (n=0; n<metaDataSize; n++) 
-     {
-     SET_BIT(bitmap,n);  //Set FrameID = 1
-     }
-
-     
-     *magic = META_MAGIC;
-     *meta_lock = 0;
-      
-    
 
 }
 
-#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 
 int test_alloc(ivshmem_pci_dev_t *dev, int size){
 /*
@@ -235,11 +140,11 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
  * */	
 
 
-    int n;
+    unsigned int n;
     int cnt = 0;
-    unsigned *bitmap = dev_iv_shm_base + BITMAP_OFFSET;
+    unsigned *bitmap =(unsigned int*) (dev->iv_shm_base + dev->metadat->bitmapOffset);
 
-    for(n=0; n++;)  ///VGL LEGO -> find largest hole in wall...
+    for(n=0; n< dev->metadata->numOfFrames; n++;)
     {
 	if (CHECK_BIT(bitmap,n))
 	{
@@ -273,12 +178,16 @@ int free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
  */
     int n; 
     int index;
-    unsigned *bitmap = dev->iv_shm_base + BITMAP_OFFSET;
+    unsigned *bitmap = (unsigned int*)(dev->iv_shm_base + dev->metadata->bitmapOffset);
 
-    index = (frame_ptr _ dev->iv_shm_base) / IVSHMEM_FRAMESIZE;
-    CLR_BIT(bitmap,index);
+    index = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize;
+ 
+    while(sem_wait(&dev->metadata->semaphore));
+	CLR_BIT(bitmap,index);
+    sem_post(&dev->metadata->semaphore);
 
 }
+
 
 void *alloc_frame(ivshmem_pci_dev_t *dev)
 {   
@@ -286,23 +195,24 @@ void *alloc_frame(ivshmem_pci_dev_t *dev)
     int index = 0;
     const int frameQuantity= 1;    
     void *ptr = NULL;
-    unsigned *bitmap = dev->iv_shm_base + BITMAP_OFFSET;
+    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + dev->metadata->bitmapOffset);
 	
 
     index = test_alloc(dev, frameQuantity);    
     if(index == -1) return ptr;
 
 	
-    // MUTEX LOCK
+    while(sem_wait(&dev->metadata->semaphore)); // mutex lock
    
     SET_BIT(bitmap,index);
     
-    ptr = dev->iv_shm_base + index * (dev->map1_size_Byte / IVSHMEM_FRAMESIZE); // base + index * numberOfFrames
+    sem_post(&dev->metadata->semaphore); //mutex unlock
 
-    // MUTEX UNLOCK
+    ptr = (void*)dev->iv_shm_base + index * dev->metadata->frameSize;
+
+    
 
     return ptr;
-    	
 
 }
 
@@ -314,12 +224,11 @@ void *alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
     int index;
     int frame_qnt = 0;
     void *ptr = NULL;
-    unsigned *bitmap = dev->iv_shm_base + BITMAP_OFFSET;
+    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + dev->metadata->bitmapOffset);
 
-    frame_qnt = sizeByte / IVSHMEM_FRAMESIZE;
-    if(sizeByte % IVSHMEM_FRAMESIZE) frame_qnt++; // one more frame if modulo != 0
+    frame_qnt = dev->metadata->numOfFrames;
 
-	// MUTEX LOCK
+    while(sem_wait(&dev->metadata->semaphore);
 
     index = test_alloc(frame_qnt);
     if(index == -1) return ptr;  // error! not enough memory
@@ -327,13 +236,13 @@ void *alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
 
     for (n = 0; n<frame_qnt; n++)
     {
-	SET_BIT(bitmap,index);  //ToDo: macro to set more bits "at once"
+	SET_BIT(bitmap,index);  //ToDo: maybe possible: macro to set more bits "at once"
 	
     }
-   
-	// MUTEX UNLOCK
     
-    ptr = dev->iv_shm_base + index * (dev->map1_size_Byte / IVSHMEM_FRAMESIZE); // base + index * numberOfFrames
+    sem_post(&dev->metadata->semaphore);
+   
+    ptr = (void*)(dev->iv_shm_base + index * dev->metadata->frameSize);
 
     return ptr;
 }
