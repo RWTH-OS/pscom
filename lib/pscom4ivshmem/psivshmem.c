@@ -18,6 +18,16 @@
 #include "perf.h"
 #include "psivshmem.h"
 #include <semaphore.h>
+#include <sys/mman.h>
+
+
+
+#include <fcntl.h>
+#include <sys/stat.h>
+
+
+
+
 
 
 static
@@ -38,7 +48,7 @@ int psreadline_from_file(char *fname, char *lbuf) //(filename, linebufer)
 }
 
 int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) device 
-
+{
     int n;
     int dev_fd;
     FILE* fd;

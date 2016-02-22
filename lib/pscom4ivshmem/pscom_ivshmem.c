@@ -31,7 +31,7 @@
 #include "psivshmem_malloc.h"	// NEW 
 #include "pscom_io.h"
 #include "pscom_ivshmem.h"   // ADDED !!
-#include "ps_ivshmem.h"
+#include "psivshmem.h"
 #include "pscom_req.h"
 #include "pscom_util.h"
 
@@ -75,12 +75,12 @@ int pscom_ivshmem_initrecv(ivshmem_conn_t *ivshmem)
 
 	void *buf;
 
-	buf = psivshmem_alloc_memory(&ivshmem->dev, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
+	buf = psivshmem_alloc_memory(&ivshmem->device, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
 	if (!buf) goto error; // ####
 
 	memset(buf, 0, sizeof(psivshmem_com_t));  // init with zeros
 	
-	ivshmem->local_com = (psivshmem_com_t)buf;
+	ivshmem->local_com = (psivshmem_com_t*)buf;
 	ivshmem->recv_cur = 0;
 	return 0;
 
@@ -128,7 +128,7 @@ int pscom_ivshmem_initsend(ivshmem_conn_t *ivshmem, void* rem_buf_offset)
 {
 	void *buf;
 //old:	buf = shmat(rem_ivshmemid, 0, 0);i
-	buf = ivshmem.device->iv_shm_base + rem_buf_offset;  //mind: both have own virtual adress spaces ;-)
+	buf = ivshmem->device.iv_shm_base +(long)rem_buf_offset;  //mind: both have own virtual adress spaces ;-)
 	if (!buf) goto error;
 
 //	ivshmem->remote_id = rem_ivshmemid;
@@ -142,14 +142,14 @@ error:
 
 
 static
-void pscom_ivshmem_init_direct(psivshmem_conn_t *ivshmem, int ivshmemid, void *remote_base)
+void pscom_ivshmem_init_direct(ivshmem_conn_t *ivshmem, int ivshmemid, void *remote_base)
 {
 	if (ivshmemid == -1) {
 		ivshmem->direct_offset = 0;
 		ivshmem->direct_base = NULL;
 		return;
 	}
-	void *buf = shmat(ivshmemid, 0, IVSHMEM_RDONLY);
+	void *buf;// = shmat(ivshmemid, 0, IVSHMEM_RDONLY);   // ToDo
 	assert(buf != (void *) -1 && buf);
 
 	ivshmem->direct_base = buf;
@@ -157,7 +157,7 @@ void pscom_ivshmem_init_direct(psivshmem_conn_t *ivshmem, int ivshmemid, void *r
 }
 
 static inline
-uint32_t pscom_ivshmem_canrecv(psivshmem_conn_t *ivshmem)
+uint32_t pscom_ivshmem_canrecv(ivshmem_conn_t *ivshmem)
 {
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // +++++
@@ -169,7 +169,7 @@ uint32_t pscom_ivshmem_canrecv(psivshmem_conn_t *ivshmem)
    Call only if shm_canrecv() == SHM_MSGTYPE_STD (no check inside)!
 */
 static inline
-void pscom_ivshmem_recvstart(psivshmem_conn_t *ivshmem, char **buf, unsigned int *len)
+void pscom_ivshmem_recvstart(ivshmem_conn_t *ivshmem, char **buf, unsigned int *len)
 {
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];  // +++++
@@ -183,7 +183,7 @@ void pscom_ivshmem_recvstart(psivshmem_conn_t *ivshmem, char **buf, unsigned int
    Call only if shm_canrecv() == SHM_MSGTYPE_DIRECT (no check inside)!
 */
 static inline
-void pscom_ivshmem_recvstart_direct(psivshmem_conn_t *ivshmem, struct iovec iov[2])
+void pscom_ivshmem_recvstart_direct(ivshmem_conn_t *ivshmem, struct iovec iov[2])
 {
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
@@ -202,7 +202,7 @@ void pscom_ivshmem_recvstart_direct(psivshmem_conn_t *ivshmem, struct iovec iov[
 
 
 static inline
-void pscom_ivshmem_recvdone(psivshmem_conn_t *ivshmem)
+void pscom_ivshmem_recvdone(ivshmem_conn_t *ivshmem)
 {
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
@@ -218,7 +218,7 @@ void pscom_ivshmem_recvdone(psivshmem_conn_t *ivshmem)
 
 
 static inline
-void pscom_ivshmem_recvdone_direct(psivshmem_conn_t *ivshmem)
+void pscom_ivshmem_recvdone_direct(ivshmem_conn_t *ivshmem)
 {
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
@@ -261,9 +261,16 @@ int pscom_ivshmem_do_read(pscom_poll_reader_t *reader)
 	return 0;
 }
 
+struct ivshmem_pending {
+	struct ivshmem_pending *next;
+	pscom_con_t *con;
+	ivshmem_msg_t *msg;
+	pscom_req_t *req;
+	void *data;
+};
 
 static
-void pscom_ivshmem_pending_io_conn_enq(psivshmem_conn_t *ivshmem)
+void pscom_ivshmem_pending_io_conn_enq(ivshmem_conn_t *ivshmem)
 {
 	if (list_empty(&ivshmem_pending_io.ivshmem_conn_head)) {
 		// Start polling for pending_io
@@ -281,10 +288,65 @@ void pscom_ivshmem_pending_io_conn_enq(psivshmem_conn_t *ivshmem)
  *  - free(data), if data != NULL
  * see shm_check_pending_io().
  */
-static
-void pscom_ivshmem_pending_io_enq(pscom_con_t *con, psivshmem_msg_t *msg, pscom_req_t *req, void *data)
+
+/* send iov.
+   Call only if shm_cansend() == true (no check inside)!
+   len must be smaller or equal SHM_BUFLEN!
+*/
+
+void pscom_ivshmem_iovsend(ivshmem_conn_t *ivshmem, struct iovec *iov, int len)
 {
-	psivshmem_conn_t *ivshmmem = &con->arch.ivshmem;
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+
+	/* copy to sharedmem */
+	pscom_memcpy_from_iov(IVSHMEM_DATA(ivshmembuf, len), iov, len);  // def in pscom_util.h
+	ivshmembuf->header.len = len;
+
+	ivshmem_mb();
+
+	/* Notification about the new message */
+	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_STD;
+	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
+}
+
+
+/* send iov.
+   Call only if shm_cansend() == true (no check inside)!
+   iov[0].iov_len must be smaller or equal SHM_BUFLEN - sizeof(struct shm_direct_header)!
+   is_psshm_ptr(iov[1].iov_base) must be true.
+*/
+
+
+ivshmem_msg_t *pscom_ivshmem_iovsend_direct(ivshmem_conn_t *ivshmem, struct iovec *iov)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+	size_t len0 = iov[0].iov_len;
+	char *data = IVSHMEM_DATA(ivshmembuf, len0);
+
+	/* reference to iov[1] before header */
+	struct ivshmem_direct_header *dh = (struct ivshmem_direct_header *)(data - sizeof(*dh));
+	dh->base = iov[1].iov_base;
+	dh->len = iov[1].iov_len;
+
+	/* copy header to sharedmem */
+	memcpy(data, iov[0].iov_base, len0);
+	ivshmembuf->header.len = len0;
+
+	ivshmem_mb();
+
+	/* Notification about the new message */
+	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_DIRECT;
+	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
+
+	return &ivshmembuf->header;
+}
+
+static
+void pscom_ivshmem_pending_io_enq(pscom_con_t *con, ivshmem_msg_t *msg, pscom_req_t *req, void *data)
+{
+	ivshmem_conn_t *ivshmem = &con->arch.ivshmem;
 	struct ivshmem_pending *ivp = malloc(sizeof(*ivp));
 	struct ivshmem_pending *old_ivp;
 	ivp->next = NULL;
@@ -294,7 +356,7 @@ void pscom_ivshmem_pending_io_enq(pscom_con_t *con, psivshmem_msg_t *msg, pscom_
 	ivp->data = data;
 
 	if (!ivshmem->ivshmem_pending) {
-		pscom_ivshmem_pending_io_conn_enq(shm); // +++++
+		pscom_ivshmem_pending_io_conn_enq(ivshmem); // +++++
 		ivshmem->ivshmem_pending = ivp;
 	} else {
 		// Append at the end
@@ -302,6 +364,15 @@ void pscom_ivshmem_pending_io_enq(pscom_con_t *con, psivshmem_msg_t *msg, pscom_
 		old_ivp->next = ivp;
 	}
 }
+
+
+struct shm_pending {
+	struct shm_pending *next;
+	pscom_con_t *con;
+	shm_msg_t *msg;
+	pscom_req_t *req;
+	void *data;
+};
 
 static
 void pscom_ivshmem_do_write(pscom_con_t *con)
@@ -312,7 +383,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 
 	req = pscom_write_get_iov(con, iov);  // pscom_io.c
 
-	if (req && pscom_ivshmem_cansend(&con->arch.ivshmem)) {   // +++++
+	if (req && ivshmem_cansend(&con->arch.ivshmem)) {   // +++++
 		if (iov[1].iov_len < ivshmem_direct ||
 		    iov[0].iov_len > (IVSHMEM_BUFLEN - sizeof(struct ivshmem_direct_header))) { // +++++
 		do_buffered_send:
@@ -328,7 +399,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 		} else if (is_psivshmem_ptr(iov[1].iov_base)) { // +++++
 			/* Direct send : Send a reference to the data iov[1]. */
 
-			psivshmem_msg_t *msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
+			ivshmem_msg_t *msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
 
 			pscom_write_pending(con, req, iov[0].iov_len + iov[1].iov_len);
 
@@ -343,7 +414,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			/* Size is good for direct send, but the data is not inside the shared mem region */
 
 			void *data;
-			psivshmem_msg_t *msg;
+			ivshmem_msg_t *msg;
 
 			if (!is_psivshmem_enabled()) goto do_buffered_send; // Direct shm is disabled.
 
@@ -357,7 +428,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			}
 
 			memcpy(data, iov[1].iov_base, iov[1].iov_len);
-			iov[1].iov_basivshmem data;
+			iov[1].iov_base = data;
 
 			msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
 
@@ -382,7 +453,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 
 
 static
-void pscom_ivshmem_pending_io_conn_deq(psivshmem_conn_t *ivshmem)
+void pscom_ivshmem_pending_io_conn_deq(ivshmem_conn_t *ivshmem)
 {
 	list_del(&ivshmem->pending_io_next_conn);
 	if (list_empty(&ivshmem_pending_io.ivshmem_conn_head)) {
@@ -392,7 +463,7 @@ void pscom_ivshmem_pending_io_conn_deq(psivshmem_conn_t *ivshmem)
 }
 
 static
-void pscom_ivshmem_check_pending_io(psivshmem_conn_t *ivshmem)
+void pscom_ivshmem_check_pending_io(ivshmem_conn_t *ivshmem)
 {
 	struct ivshmem_pending *ivp;
 	while (((ivp = ivshmem->ivshmem_pending)) && ivp->msg->msg_type == IVSHMEM_MSGTYPE_DIRECT_DONE) {
@@ -409,7 +480,7 @@ void pscom_ivshmem_check_pending_io(psivshmem_conn_t *ivshmem)
 
 		if (!ivshmem->ivshmem_pending) {
 			// shm_conn_t is without pending io requests.
-			pscom_ivshmem_pending_io_conn_deq(shm);
+			pscom_ivshmem_pending_io_conn_deq(ivshmem);
 			break;
 		}
 	}
@@ -421,9 +492,9 @@ int pscom_ivshmem_poll_pending_io(pscom_poll_reader_t *poll_reader)
 	struct list_head *pos, *next;
 	// For each shm_conn_t shm
 	list_for_each_safe(pos, next, &ivshmem_pending_io.ivshmem_conn_head) {
-		psivshmem_conn_t *ivshmem = list_entry(pos, psivshmem_conn_t, pending_io_next_conn);
+		ivshmem_conn_t *ivshmem = list_entry(pos, ivshmem_conn_t, pending_io_next_conn);
 
-		pscom_ivshmem_check_pending_io(shm);
+		pscom_ivshmem_check_pending_io(ivshmem);
 	}
 	return 0;
 }
@@ -451,16 +522,32 @@ void pscom_ivshmem_info_msg(ivshmem_conn_t *ivshmem, psivshmem_info_msg_t *msg)
 	
 //	msg->ivshmem_id = ivshmem->local_id;
 	
-	msg->ivshmem_buf_offset =(void*) (ivshmem->local_com - ivshmem.dev->iv_shm_base); 
+	msg->ivshmem_buf_offset =(void*) (ivshmem->local_com - (long)ivshmem->device.iv_shm_base); 
 	
 	msg->direct_ivshmem_id = psivshmem_info.ivshmemid;  // <--- ToDo!!
 	msg->direct_base = psivshmem_info.base;
 }
 
 
+static
+void ivshmem_cleanup_ivshmem_conn(ivshmem_conn_t *ivshmem)
+{
 
-static inline
-int pscom_ivshmem_cansend(psivshmem_conn_t *ivshmem)
+//	if (ivshmem.remote_com) psivshmem_free_mem(&ivshmem.device, ivshmem.remote_com, sizeof(ivshmem.remote_com));
+
+
+	if (ivshmem->local_com) psivshmem_free_mem(&ivshmem->device, ivshmem->local_com, sizeof(ivshmem->local_com));
+	ivshmem->local_com = NULL;
+
+	if (ivshmem->remote_com) psivshmem_free_mem(&ivshmem->device, ivshmem->remote_com, sizeof(ivshmem->remote_com)); 
+	ivshmem->remote_com = NULL;
+
+	if (ivshmem->direct_base) shmdt(ivshmem->direct_base);  // <--- ToDO !!!!!!!!!!!!!!!
+	ivshmem->direct_base = NULL;
+}
+
+static
+int pscom_ivshmem_cansend(ivshmem_conn_t *ivshmem)
 {
 	int cur = ivshmem->send_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
@@ -469,7 +556,7 @@ int pscom_ivshmem_cansend(psivshmem_conn_t *ivshmem)
 
 
 static
-void pscom_ivshmem_send(psivshmem_conn_t *ivshmem, char *buf, int len)
+void pscom_ivshmem_send(ivshmem_conn_t *ivshmem, char *buf, int len)
 {
 	int cur = ivshmem->send_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];  // sind header sauber aufgeteilt????? 
@@ -486,67 +573,13 @@ void pscom_ivshmem_send(psivshmem_conn_t *ivshmem, char *buf, int len)
 }
 
 
-/* send iov.
-   Call only if shm_cansend() == true (no check inside)!
-   len must be smaller or equal SHM_BUFLEN!
-*/
-static
-void pscom_ivshmem_iovsend(psivshmem_conn_t *ivshmem, struct iovec *iov, int len)
-{
-	int cur = ivshmem->send_cur;
-	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
-
-	/* copy to sharedmem */
-	pscom_memcpy_from_iov(IVSHMEM_DATA(ivshmembuf, len), iov, len);  // def in pscom_util.h
-	ivshmembuf->header.len = len;
-
-	ivshmem_mb();
-
-	/* Notification about the new message */
-	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_STD;
-	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
-}
-
-
-/* send iov.
-   Call only if shm_cansend() == true (no check inside)!
-   iov[0].iov_len must be smaller or equal SHM_BUFLEN - sizeof(struct shm_direct_header)!
-   is_psshm_ptr(iov[1].iov_base) must be true.
-*/
-
-
-static
-psivshmem_msg_t *pscom_ivshmem_iovsend_direct(psivshmem_conn_t *ivshmem, struct iovec *iov)
-{
-	int cur = ivshmem->send_cur;
-	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
-	size_t len0 = iov[0].iov_len;
-	char *data = IVSHMEM_DATA(ivshmembuf, len0);
-
-	/* reference to iov[1] before header */
-	struct ivshmem_direct_header *dh = (struct ivshmem_direct_header *)(data - sizeof(*dh));
-	dh->base = iov[1].iov_base;
-	dh->len = iov[1].iov_len;
-
-	/* copy header to sharedmem */
-	memcpy(data, iov[0].iov_base, len0);
-	ivshmembuf->header.len = len0;
-
-	ivshmem_mb();
-
-	/* Notification about the new message */
-	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_DIRECT;
-	ivshmem->send_cur = (ivshmem->send_cur + 1) % IVSHMEM_BUFS;
-
-	return &ivshmembuf->header;
-}
 
 static
 void pscom_ivshmem_close(pscom_con_t *con)
 {
 	if (con->arch.ivshmem.local_com) {
 		int i;
-		psivshmem_conn_t *ivshmem = &con->arch.ivshmem;
+		ivshmem_conn_t *ivshmem = &con->arch.ivshmem;
 
 		for (i = 0; i < 5; i++) {
 			// ToDo: Unreliable EOF
@@ -568,7 +601,7 @@ void pscom_ivshmem_close(pscom_con_t *con)
 
 static
 void pscom_ivshmem_init_con(pscom_con_t *con,
-		  int con_fd, psivshmem_conn_t *ivshmem)
+		  int con_fd, ivshmem_conn_t *ivshmem)
 {
 	con->pub.state = PSCOM_CON_STATE_RW;
 	con->pub.type = PSCOM_CON_TYPE_IVSHMEM;
@@ -606,18 +639,6 @@ void ivshmem_init_ivshmem_conn(ivshmem_conn_t *ivshmem)
 }
 
 
-static
-void ivshmem_cleanup_ivshmem_conn(psivshmem_conn_t *ivshmem)
-{
-	if (ivshmem->local_com) shmdt(ivshmem->local_com);
-	ivshmem->local_com = NULL;
-
-	if (ivshmem->remote_com) shmdt(ivshmem->remote_com);
-	ivshmem->remote_com = NULL;
-
-	if (ivshmem->direct_base) shmdt(ivshmem->direct_base);
-	ivshmem->direct_base = NULL;
-}
 
 static
 int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
@@ -629,7 +650,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	int ack;
 
 
-	if (psivshmem_init_uio_device(&ivshmem->device)) return 0; //  => no ivshmem dev available 
+	if (psivshmem_init_uio_device(&ivshmem.device)) return 0; //  => no ivshmem dev available 
 	//psivshmem_init returns 0 on success
 
 //	if (!ivshmem_is_local(con)) // ivshmem_is_local() checks if partner has same nodeID => same node => if not same node return 0; because SHM not possible 
@@ -647,7 +668,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 		goto err_remote;
 
 	/* step 2 : recv ivshmem info msg */
-	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) || !(strcmp(msg.hostname, ivshmem.device.metadata.hostname)) )  /*read info message and >CHECK HOSTNAME< */
+	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) || !(strcmp(msg.hostname, ivshmem.device.metadata->hostname)) )  /*read info message and >CHECK HOSTNAME< */
 		goto err_remote;
 	
 	
@@ -695,7 +716,7 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 
 	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
 
-	if (/*(!ivshmem_is_local(con)) ||*/ pscom_ivshmem_initrecv(&ivshmem)) {
+	if (/*(!ivshmem_is_local(con)) ||*/ psivshmem_init_uio_device(&ivshmem.device) || pscom_ivshmem_initrecv(&ivshmem)) {  // init device & recievbuf
 		arch = PSCOM_ARCH_ERROR;
 		pscom_writeall(con_fd, &arch, sizeof(arch));
 		goto dont_use; /* Dont use inter vm sharedmem */
@@ -711,11 +732,11 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 
 	/* step 3: Recv ivshmem_id. */
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) ||
-	    msg.ivshmem_id == -1) goto err_remote;
+	    msg.ivshmem_buf_offset == -1) goto err_remote;
 
-	if (pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_id)) goto err_local;
+	if (pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_buf_offset)) goto err_local;
 
-	pscom_ivshmem_init_direct(&ivshmem, msg.direct_ivshmem_id, msg.direct_base);
+		pscom_ivshmem_init_direct(&ivshmem, msg.direct_ivshmem_id, msg.direct_base);  // ToDO!!
 
 	/* step 4: inter VM SHM initialized. Send final ACK. */
 	ack = 0;

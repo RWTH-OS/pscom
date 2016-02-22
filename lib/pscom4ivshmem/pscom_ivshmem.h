@@ -22,6 +22,7 @@
 #include "list.h"
 #include "pscom_types.h"
 #include "pscom_plugin.h"
+#include "psivshmem.h"
 
 
 
@@ -56,7 +57,7 @@ typedef struct psivshmem_info_msg_s {
 	void *direct_base;	/* base pointer of the IVM shared mem segment */	
 
 	void *ivshmem_buf_offset;
-	char[50] hostname;	/* for comparison */ 
+	char hostname[50];	/* for comparison */ 
 
 
 
@@ -72,7 +73,7 @@ typedef struct psivshmem_buf_s {
 
 
 typedef struct ivshmem_com_s {
-	ivshmem_buf_t	buf[IVSHMEM_BUFS];
+	psivshmem_buf_t	buf[IVSHMEM_BUFS];
 } psivshmem_com_t;
 
 typedef struct ivshmem_conn_s {

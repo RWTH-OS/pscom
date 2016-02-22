@@ -29,6 +29,9 @@
 #include "pscom_gm.h"
 #include "pscom_env.h"
 
+
+#include "../pscom4ivshmem/pscom_ivshmem.h"
+
 #include "pscom_debug.h"
 
 
@@ -289,7 +292,7 @@ struct PSCOM_con
 		p4s_conn_t	p4s;
 		psib_conn_t	mvapi;
 		psoib_conn_t	openib;
-		psivshmem_conn_t ivshmem;   /*#### ADDED ### */
+		ivshmem_conn_t ivshmem;   /*#### ADDED ### */
 		psofed_conn_t	ofed;
 		psgm_conn_t	gm;
 		psdapl_conn_t	dapl;
@@ -337,7 +340,7 @@ struct PSCOM_sock
 	p4s_sock_t		p4s;
 //	psib_sock_t		mvapi;
 //	psoib_sock_t		openib;
-	psivshmem_sock_t	ivshmem;
+	ivshmem_sock_t	ivshmem;
 //	psofed_sock_t		ofed;
 	psgm_sock_t		gm;
 //	psdapl_sock_t		dapl;
