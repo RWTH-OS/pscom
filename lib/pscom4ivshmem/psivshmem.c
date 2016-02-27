@@ -80,7 +80,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
 	
 
    	sprintf(file_path, "/dev/uio%d", n);
-     	dev_fd = open(file_path);
+     	dev_fd = open(file_path, O_RDWR);
 	if (dev_fd == -1) {goto device_error;}
 	
 
@@ -88,7 +88,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
    	sprintf(file_path, "/sys/class/uio/uio%d/maps/map1/size", n);
     	psreadline_from_file(file_path, dev->str_map1_size_hex);
    
-     	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
+//     	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
     	dev->map1_size_Byte = strtol(dev->str_map1_size_hex, NULL, 0);
 
     	dev->map1_size_MiB   =  dev->map1_size_Byte / (float)1024 / (float)1024; // Byte -> KiB -> MiB
@@ -97,10 +97,12 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
     	psreadline_from_file(file_path,dev->version);
    
  
-        void *map_addr = mmap(NULL,dev->map1_size_Byte, PORT_READ | PORT_WRITE, MAP_SHARED, dev_fd,1 * getpagesize());  // last param. overloaded for ivshmem -> 2 memorysegments available; Reg.= 0;  Data = 1;
+        void *map_addr = mmap(NULL,dev->map1_size_Byte, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd,1 * getpagesize());  // last param. overloaded for ivshmem -> 2 memorysegments available; Reg.= 0;  Data = 1;
 	
 
 	dev->metadata = (meta_data_t *) map_addr;  //map metadata!
+	dev->iv_shm_base = map_addr; 
+
 
 	if(dev->metadata->magic != META_MAGIC) goto not_initialised; 
 	
@@ -117,6 +119,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
      	printf("Version \t= %s\n" ,dev->version); 
    */	
 
+     	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
 
     // 	close(dev_fd); //keep dev_fd alive!
     	fclose(fd);
@@ -149,14 +152,23 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
  *
  * */	
 
+  //  printf("test_alloc says <hello World!>\n");
 
     unsigned int n;
     int cnt = 0;
-    unsigned *bitmap =(unsigned int*) (dev->iv_shm_base + dev->metadat->bitmapOffset);
+    unsigned int *bitmap =(unsigned int*) (dev->iv_shm_base + (long)dev->metadata->bitmapOffset);
 
-    for(n=0; n< dev->metadata->numOfFrames; n++;)
+
+   // printf("test_alloc says <size: %d>\n",size);
+
+    for(n=0; n< dev->metadata->numOfFrames; n++)
     {
-	if (CHECK_BIT(bitmap,n))
+
+
+   // printf("test_alloc says <hello out of the loop:%d>\n",n);
+//	printf("bitmap bit no %d = %d\n",n,CHECK_BIT(bitmap,n));
+
+	if (!CHECK_BIT(bitmap,n))
 	{
 	    cnt++;
 	} else
@@ -168,7 +180,7 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
 	
 	// return index of first free frame belonging to a block of at least N free frames! 
 	if (cnt >= size) {
-	return (n - cnt); // return index of first free frame belonging to a block of at least N free frames! 
+	return (n - cnt + 1); // return index of first free frame belonging to a block of at least N free frames! 
 	}
     }
 
@@ -192,13 +204,13 @@ int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 
     index = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize;
  
-    while(sem_wait(&dev->metadata->semaphore));
+    while(sem_wait(&dev->metadata->meta_semaphore));
 	CLR_BIT(bitmap,index);
-    sem_post(&dev->metadata->semaphore);
+    sem_post(&dev->metadata->meta_semaphore);
 
 }
 
-int psivhmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
+int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
 {
 /*
  * first implementation: just clear corresponding bit in bitmap -> frame is available
@@ -217,11 +229,11 @@ int psivhmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
     index_low = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize; //has to be a multiple of it!
     index_high = (frame_ptr - dev->iv_shm_base + size + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
  
-    while(sem_wait(&dev->metadata->semaphore));
+    while(sem_wait(&dev->metadata->meta_semaphore));
         for(n = index_low; n<=index_high;n++) {  //'unlock' all N used frames 	
 	    CLR_BIT(bitmap, n);
 	}
-    sem_post(&dev->metadata->semaphore);
+    sem_post(&dev->metadata->meta_semaphore);
 
 }
 
@@ -238,11 +250,11 @@ void *alloc_frame(ivshmem_pci_dev_t *dev)
     if(index == -1) return ptr;
 
 	
-    while(sem_wait(&dev->metadata->semaphore)); // mutex lock
+    while(sem_wait(&dev->metadata->meta_semaphore)); // mutex lock
    
     SET_BIT(bitmap,index);
     
-    sem_post(&dev->metadata->semaphore); //mutex unlock
+    sem_post(&dev->metadata->meta_semaphore); //mutex unlock
 
     ptr = (void*)dev->iv_shm_base + index * dev->metadata->frameSize;
 
@@ -260,26 +272,41 @@ void *psivshmem_alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
     int index;
     int frame_qnt = 0;
     void *ptr = NULL;
-    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + dev->metadata->bitmapOffset);
+    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + (long) dev->metadata->bitmapOffset);
 
-    frame_qnt = dev->metadata->numOfFrames;
 
-    while(sem_wait(&dev->metadata->semaphore);
+   // printf("psivshmem_alloc_memory says <hello World!>\n");
 
-    index = test_alloc(frame_qnt);
+    frame_qnt = (sizeByte + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
+
+    while(sem_wait(&dev->metadata->meta_semaphore));
+
+   // printf("psivshmem_alloc_memory says <locked the mutex>\n");
+    index = test_alloc(dev ,frame_qnt);
+
+  //  printf("psivshmem_alloc_memory says <index = %d>\n",index);
+
     if(index == -1) return ptr;  // error! not enough memory
 
 
-    for (n = 0; n<frame_qnt; n++)
+    for (n = index; n<index + frame_qnt; n++)
     {
-	SET_BIT(bitmap,index);  //ToDo: maybe possible: macro to set more bits "at once"
+	SET_BIT(bitmap,n);  //ToDo: maybe possible: macro to set more bits "at once"
+	
+ //  	 printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);
 	
     }
     
-    sem_post(&dev->metadata->semaphore);
+    sem_post(&dev->metadata->meta_semaphore);
    
-    ptr = (void*)(dev->iv_shm_base + index * dev->metadata->frameSize);
+    ptr = (void*)((char*)dev->iv_shm_base + (long)(index * dev->metadata->frameSize));
 
+//	printf("ivshmem base ptr = %p\n", dev->iv_shm_base);
+//	printf("ivshmem mem ptr = %p\n",ptr);
+
+
+
+//    printf("psivshmem_alloc_memory says <reached the end! :-) >\n");
     return ptr;
 }
 

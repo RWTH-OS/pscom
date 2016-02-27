@@ -387,10 +387,10 @@ TXT2MAN = $(top_srcdir)/scripts/txt2man
 # FIXME: non-standard
 configdir = $(prefix)/config
 lib_LTLIBRARIES = libpscom4ivshmem.la
-libpscom4ivshmem_la_SOURCES = pscom_ivshmem.c pscom_ivshmem.h psivshmem.c psivshmem.h
+libpscom4ivshmem_la_SOURCES = pscom_ivshmem.c pscom_ivshmem.h psivshmem.c psivshmem.h metadata.h
 libpscom4ivshmem_la_CPPFLAGS = $(AM_CPPFLAGS) $(IVSHMEM_CPPFLAGS)
 libpscom4ivshmem_la_LDFLAGS = $(AM_LDFLAGS) $(IVSHMEM_LDFLAGS)
-libpscom4ivshmem_la_LIBADD = -libverbs $(top_builddir)/lib/pscom/libpscom.la
+libpscom4ivshmem_la_LIBADD = -lpthread $(top_builddir)/lib/pscom/libpscom.la
 all: all-am
 
 .SUFFIXES:

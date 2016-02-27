@@ -91,7 +91,7 @@ struct PSP_Connection_s {
 	psoib_info_t	openib;
 #endif
 #ifdef ENABLE_IVSHMEM
-	psivshmem_info_t	ivshmem;
+//	psivshmem_info_t	ivshmem;
 #endif
 #ifdef ENABLE_GM
 	psgm_info_t	gm;

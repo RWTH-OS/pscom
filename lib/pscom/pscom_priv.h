@@ -208,7 +208,7 @@ typedef struct _pscom_rendezvous_data_extoll {
 
 typedef struct _pscom_rendezvous_data_ivshmem {
 	/* placeholder */
-	char /* struct psoib_rm_req */ _rma_req[128];
+	/* <=> shm */
 } _pscom_rendezvous_data_ivshmem_t;
 
 typedef struct _pscom_rendezvous_data_openib {

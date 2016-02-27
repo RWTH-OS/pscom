@@ -28,7 +28,7 @@
 #include <infiniband/verbs.h>
 
 #include "pscom_priv.h"
-#include "psivshmem_malloc.h"	// NEW 
+//#include "psivshmem_malloc.h"	// NEW 
 #include "pscom_io.h"
 #include "pscom_ivshmem.h"   // ADDED !!
 #include "psivshmem.h"
@@ -75,13 +75,28 @@ int pscom_ivshmem_initrecv(ivshmem_conn_t *ivshmem)
 
 	void *buf;
 
+   	printf("pscom_ivshmem_initrecv says <Hello World! %p>\n",&ivshmem->device);
+	
 	buf = psivshmem_alloc_memory(&ivshmem->device, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
+
+	
+   //	printf("pscom_ivshmem_initrecv says <got memory>\n");
+	
 	if (!buf) goto error; // ####
 
+  // 	printf("pscom_ivshmem_initrecv says <no buf error! buf = %p>\n",buf);
 	memset(buf, 0, sizeof(psivshmem_com_t));  // init with zeros
+
+	
+//   	printf("pscom_ivshmem_initrecv says <set it to zero>\n");
 	
 	ivshmem->local_com = (psivshmem_com_t*)buf;
+//   	printf("pscom_ivshmem_initrecv says <ivshmem->local_com = %p >\n",ivshmem->local_com);
+	
 	ivshmem->recv_cur = 0;
+
+
+   	printf("pscom_ivshmem_initrecv says <reached the end! :-) >\n");
 	return 0;
 
 error:		
@@ -127,13 +142,20 @@ static
 int pscom_ivshmem_initsend(ivshmem_conn_t *ivshmem, void* rem_buf_offset)
 {
 	void *buf;
+
+	printf("pscom_ivshmem_initsend says <Hello World>\n");
 //old:	buf = shmat(rem_ivshmemid, 0, 0);i
-	buf = ivshmem->device.iv_shm_base +(long)rem_buf_offset;  //mind: both have own virtual adress spaces ;-)
+	buf = (void*)(ivshmem->device.iv_shm_base +(long)rem_buf_offset);  //mind: both have own virtual adress spaces ;-)
 	if (!buf) goto error;
+
+
+	printf("pscom_ivshmem_initsend says <reached the end :-) >\n");
+
 
 //	ivshmem->remote_id = rem_ivshmemid;
 	ivshmem->remote_com = buf;
 	ivshmem->send_cur = 0;
+
 	return 0;
 error:
 	DPRINT(1, "Some trouble in pscom_ivshmem_initsend(...)!");
@@ -142,18 +164,19 @@ error:
 
 
 static
-void pscom_ivshmem_init_direct(ivshmem_conn_t *ivshmem, int ivshmemid, void *remote_base)
+void pscom_ivshmem_init_direct(ivshmem_conn_t *ivshmem, /* int ivshmemid,*/ long remote_offset)
 {
-	if (ivshmemid == -1) {
+/*	if (ivshmemid == -1) {
 		ivshmem->direct_offset = 0;
 		ivshmem->direct_base = NULL;
 		return;
-	}
-	void *buf;// = shmat(ivshmemid, 0, IVSHMEM_RDONLY);   // ToDo
-	assert(buf != (void *) -1 && buf);
+	} */
 
+	void *buf = (void*)(ivshmem->device.iv_shm_base + (long)remote_offset);// = shmat(ivshmemid, 0, IVSHMEM_RDONLY); ToDo
+	assert(buf != (void *) -1 && buf);
+		
 	ivshmem->direct_base = buf;
-	ivshmem->direct_offset = (char *)buf - (char *)remote_base;
+	ivshmem->direct_offset = remote_offset;
 }
 
 static inline
@@ -207,7 +230,7 @@ void pscom_ivshmem_recvdone(ivshmem_conn_t *ivshmem)
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
 
-	shm_mb();	// +++++ macro
+	ivshmem_mb();	// +++++ macro
 
 	/* Notification: message is read */
 	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_NONE;
@@ -223,7 +246,7 @@ void pscom_ivshmem_recvdone_direct(ivshmem_conn_t *ivshmem)
 	int cur = ivshmem->recv_cur;
 	psivshmem_buf_t *ivshmembuf = &ivshmem->local_com->buf[cur];
 
-	shm_mb();  	// +++++ macro
+	ivshmem_mb();  	// +++++ macro
 
 	/* Notification: message is read */
 	ivshmembuf->header.msg_type = IVSHMEM_MSGTYPE_DIRECT_DONE;
@@ -366,13 +389,15 @@ void pscom_ivshmem_pending_io_enq(pscom_con_t *con, ivshmem_msg_t *msg, pscom_re
 }
 
 
-struct shm_pending {
-	struct shm_pending *next;
-	pscom_con_t *con;
-	shm_msg_t *msg;
-	pscom_req_t *req;
-	void *data;
-};
+static
+int ivshmem_cansend(ivshmem_conn_t *ivshmem)
+{
+	int cur = ivshmem->send_cur;
+	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
+	return ivshmembuf->header.msg_type == IVSHMEM_MSGTYPE_NONE;
+}
+
+
 
 static
 void pscom_ivshmem_do_write(pscom_con_t *con)
@@ -396,7 +421,7 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			pscom_ivshmem_iovsend(&con->arch.ivshmem, iov, len);  // +++++
 
 			pscom_write_done(con, req, len);
-		} else if (is_psivshmem_ptr(iov[1].iov_base)) { // +++++
+		} else if (/*is_psivshmem_ptr(iov[1].iov_base)*/0) { // +++++    ########### ToDO
 			/* Direct send : Send a reference to the data iov[1]. */
 
 			ivshmem_msg_t *msg = pscom_ivshmem_iovsend_direct(&con->arch.ivshmem, iov); // +++++
@@ -416,11 +441,11 @@ void pscom_ivshmem_do_write(pscom_con_t *con)
 			void *data;
 			ivshmem_msg_t *msg;
 
-			if (!is_psivshmem_enabled()) goto do_buffered_send; // Direct shm is disabled.
+	//		if (!is_psivshmem_enabled()) goto do_buffered_send; // Direct shm is disabled.
 
 			data = malloc(iov[1].iov_len); // try to get a buffer inside the shared mem region ~~~~~~~~~~~~~~~~~~~~~~~~~~~~+++++++++++
 
-			if (unlikely(!is_psivshmem_ptr(data))) {
+			if (/*unlikely(!is_psivshmem_ptr(data))*/0) {
 				// Still a non shared buffer
 				free(data);
 				pscom.stat.ivshmem_direct_failed++;
@@ -503,13 +528,13 @@ int pscom_ivshmem_poll_pending_io(pscom_poll_reader_t *poll_reader)
 
 void pscom_ivshmem_sock_init(pscom_sock_t *sock)
 {
-	if (psivshmem_info.size) {
-		DPRINT(2, "PSP_IVSHMEM_MALLOC = 1 : size = %lu\n", psivshmem_info.size);
-			pscom_env_get_uint(&ivshmem_direct, ENV_IVSHMEM_DIRECT);
-	} else {
-		DPRINT(2, "PSP_IVSHMEM_MALLOC disabled : %s\n", psivshmem_info.msg);
+//	if (psivshmem_info.size) {    //   ############################################### !!  ToDO
+//		DPRINT(2, "PSP_IVSHMEM_MALLOC = 1 : size = %lu\n", psivshmem_info.size);
+//			pscom_env_get_uint(&ivshmem_direct, ENV_IVSHMEM_DIRECT);
+//	} else {
+//		DPRINT(2, "PSP_IVSHMEM_MALLOC disabled : %s\n", psivshmem_info.msg);
 		ivshmem_direct = (unsigned)~0;
-	}
+//	}
 
 	ivshmem_pending_io.poll_reader.do_read = pscom_ivshmem_poll_pending_io;
 	INIT_LIST_HEAD(&ivshmem_pending_io.ivshmem_conn_head);
@@ -522,10 +547,10 @@ void pscom_ivshmem_info_msg(ivshmem_conn_t *ivshmem, psivshmem_info_msg_t *msg)
 	
 //	msg->ivshmem_id = ivshmem->local_id;
 	
-	msg->ivshmem_buf_offset =(void*) (ivshmem->local_com - (long)ivshmem->device.iv_shm_base); 
+	msg->ivshmem_buf_offset =(void*) ((char*)ivshmem->local_com - (long)ivshmem->device.iv_shm_base); 
 	
-	msg->direct_ivshmem_id = psivshmem_info.ivshmemid;  // <--- ToDo!!
-	msg->direct_base = psivshmem_info.base;
+//	msg->direct_ivshmem_id = psivshmem_info.ivshmemid;  // <--- ToDo!!
+	msg->direct_base = msg->ivshmem_buf_offset; // use same buffer first...  //psivshmem_info.base;   
 }
 
 
@@ -535,7 +560,9 @@ void ivshmem_cleanup_ivshmem_conn(ivshmem_conn_t *ivshmem)
 
 //	if (ivshmem.remote_com) psivshmem_free_mem(&ivshmem.device, ivshmem.remote_com, sizeof(ivshmem.remote_com));
 
+printf("pscom_ivshmem.c: ivshmem_cleanup_ivshmem_conn says <Hello World, please implement me!>");
 
+/*
 	if (ivshmem->local_com) psivshmem_free_mem(&ivshmem->device, ivshmem->local_com, sizeof(ivshmem->local_com));
 	ivshmem->local_com = NULL;
 
@@ -544,15 +571,10 @@ void ivshmem_cleanup_ivshmem_conn(ivshmem_conn_t *ivshmem)
 
 	if (ivshmem->direct_base) shmdt(ivshmem->direct_base);  // <--- ToDO !!!!!!!!!!!!!!!
 	ivshmem->direct_base = NULL;
+*/
+
 }
 
-static
-int pscom_ivshmem_cansend(ivshmem_conn_t *ivshmem)
-{
-	int cur = ivshmem->send_cur;
-	psivshmem_buf_t *ivshmembuf = &ivshmem->remote_com->buf[cur];
-	return ivshmembuf->header.msg_type == IVSHMEM_MSGTYPE_NONE;
-}
 
 
 static
@@ -583,7 +605,7 @@ void pscom_ivshmem_close(pscom_con_t *con)
 
 		for (i = 0; i < 5; i++) {
 			// ToDo: Unreliable EOF
-			if (pscom_ivshmem_cansend(ivshmem)) { // +++++
+			if (ivshmem_cansend(ivshmem)) { // +++++
 				pscom_ivshmem_send(ivshmem, NULL, 0); // +++++
 				break;
 			} else {
@@ -650,6 +672,12 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	int ack;
 
 
+
+	printf("ivshmem_connect says <hello World!>\n");
+
+	
+	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
+
 	if (psivshmem_init_uio_device(&ivshmem.device)) return 0; //  => no ivshmem dev available 
 	//psivshmem_init returns 0 on success
 
@@ -659,39 +687,57 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 //	replaced by handshake
 //
 //
+	
+	printf("ivshmem_connect says <device initialized!>\n");
+
 	/* talk ivshmem? */
 	pscom_writeall(con_fd, &arch, sizeof(arch)); // write which connection architecure I am using...
+	
+	
+	printf("ivshmem_connect says <asked for ivshmem>\n");
 
 	/* step 1 */
 	if ((pscom_readall(con_fd, &arch, sizeof(arch)) != sizeof(arch)) ||
 	    (arch != PSCOM_ARCH_IVSHMEM))   /*error if partner is using other architecture (means not installed shm)*/
 		goto err_remote;
 
+	printf("ivshmem_connect says <read arch>\n");
 	/* step 2 : recv ivshmem info msg */
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) || !(strcmp(msg.hostname, ivshmem.device.metadata->hostname)) )  /*read info message and >CHECK HOSTNAME< */
 		goto err_remote;
 	
+	printf("ivshmem_connect says <recieved info msg>\n");
 	
 	/* here we are on the same host :-) */
-	ivshmem_init_ivshmem_conn(&ivshmem); //just init with NULL
+//	ivshmem_init_ivshmem_conn(&ivshmem); //just init with NULL
 	err = pscom_ivshmem_initrecv(&ivshmem) || pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_buf_offset /*msg.ivshmem_id*/); // <==done
 
-	pscom_ivshmem_init_direct(&ivshmem, msg.direct_ivshmem_id, msg.direct_base);  //  <--- ToDO!!
+
+	printf("ivshmem_connect says <TEST MARKE>\n");
+	pscom_ivshmem_init_direct(&ivshmem,/* msg.direct_ivshmem_id,*/ msg.direct_base);  //  <--- ToDO!!
+
+	
+	printf("ivshmem_connect says <initialized buffers>\n");
 
 	/* step 3 : send ivshmem_id or error */
 	pscom_ivshmem_info_msg(&ivshmem, &msg);
 	if (err) msg.ivshmem_buf_offset = -1;
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 	if (err) goto err_local;
+	
+	printf("ivshmem_connect says < send msg >\n");
 
 	/* step 4: Inter VM SharedMemory initialized. Recv final ACK. */
 	if ((pscom_readall(con_fd, &ack, sizeof(ack)) != sizeof(ack)) ||  // stays the same
 	    (ack == -1)) goto err_ack;
 
 
+	printf("ivshmem_connect says <recived final Ack!>\n");
+
 	pscom_ivshmem_init_con(con, con_fd, &ivshmem); 
 
 
+	printf("ivshmem_connect says <reached the end! :-) >\n");
 	return 1;
 	/* --- */
 
@@ -714,7 +760,12 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	psivshmem_info_msg_t msg;
 	int ack;
 
+	printf("ivshmem_accept says <hello World!>\n");
+
+
 	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
+
+
 
 	if (/*(!ivshmem_is_local(con)) ||*/ psivshmem_init_uio_device(&ivshmem.device) || pscom_ivshmem_initrecv(&ivshmem)) {  // init device & recievbuf
 		arch = PSCOM_ARCH_ERROR;
@@ -722,27 +773,43 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 		goto dont_use; /* Dont use inter vm sharedmem */
 	}
 
+	
+	printf("ivshmem_accept says <device initialized>\n");
+
 	/* step 1:  Yes, we talk IVSHMEM. */
 	pscom_writeall(con_fd, &arch, sizeof(arch));
+
+
+	printf("ivshmem_accept says <written arch>\n");
 
 	/* step 2: Send ivshmem_id. */
 	pscom_ivshmem_info_msg(&ivshmem, &msg);
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
+	
+	printf("ivshmem_accept says <sent message (step 2)>\n");
 
 	/* step 3: Recv ivshmem_id. */
-	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) ||
-	    msg.ivshmem_buf_offset == -1) goto err_remote;
+	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) /*||
+	    msg.ivshmem_buf_offset == -1*/) goto err_remote;
 
+	printf("ivshmem_accept says <buf_offset = %p >\n", msg.ivshmem_buf_offset);
+	printf("ivshmem_accept says <sent message (step 2b)>\n");
 	if (pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_buf_offset)) goto err_local;
 
-		pscom_ivshmem_init_direct(&ivshmem, msg.direct_ivshmem_id, msg.direct_base);  // ToDO!!
+		pscom_ivshmem_init_direct(&ivshmem,/* msg.direct_ivshmem_id,*/ msg.direct_base);  // ToDO!!
+
+
+	printf("ivshmem_accept says <revieved step 3>\n");
 
 	/* step 4: inter VM SHM initialized. Send final ACK. */
 	ack = 0;
 	pscom_writeall(con_fd, &ack, sizeof(ack));
 
 	pscom_ivshmem_init_con(con, con_fd, &ivshmem); //update function pointer -> 'now using ivshmem'!
+
+	
+	printf("ivshmem_accept says <reached the end! :-) >\n");
 
 	return 1;
 	/* --- */
