@@ -75,7 +75,7 @@ int pscom_ivshmem_initrecv(ivshmem_conn_t *ivshmem)
 
 	void *buf;
 
-   	printf("pscom_ivshmem_initrecv says <Hello World! %p>\n",&ivshmem->device);
+   //	printf("pscom_ivshmem_initrecv says <Hello World! %p>\n",&ivshmem->device);
 	
 	buf = psivshmem_alloc_memory(&ivshmem->device, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
 
@@ -96,7 +96,7 @@ int pscom_ivshmem_initrecv(ivshmem_conn_t *ivshmem)
 	ivshmem->recv_cur = 0;
 
 
-   	printf("pscom_ivshmem_initrecv says <reached the end! :-) >\n");
+  // 	printf("pscom_ivshmem_initrecv says <reached the end! :-) >\n");
 	return 0;
 
 error:		
@@ -143,13 +143,13 @@ int pscom_ivshmem_initsend(ivshmem_conn_t *ivshmem, void* rem_buf_offset)
 {
 	void *buf;
 
-	printf("pscom_ivshmem_initsend says <Hello World>\n");
+//	printf("pscom_ivshmem_initsend says <Hello World>\n");
 //old:	buf = shmat(rem_ivshmemid, 0, 0);i
 	buf = (void*)(ivshmem->device.iv_shm_base +(long)rem_buf_offset);  //mind: both have own virtual adress spaces ;-)
 	if (!buf) goto error;
 
 
-	printf("pscom_ivshmem_initsend says <reached the end :-) >\n");
+//	printf("pscom_ivshmem_initsend says <reached the end :-) >\n");
 
 
 //	ivshmem->remote_id = rem_ivshmemid;
@@ -673,7 +673,7 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 
 
 
-	printf("ivshmem_connect says <hello World!>\n");
+//	printf("ivshmem_connect says <hello World!>\n");
 
 	
 	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
@@ -688,36 +688,36 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 //
 //
 	
-	printf("ivshmem_connect says <device initialized!>\n");
+//	printf("ivshmem_connect says <device initialized!>\n");
 
 	/* talk ivshmem? */
 	pscom_writeall(con_fd, &arch, sizeof(arch)); // write which connection architecure I am using...
 	
 	
-	printf("ivshmem_connect says <asked for ivshmem>\n");
+//	printf("ivshmem_connect says <asked for ivshmem>\n");
 
 	/* step 1 */
 	if ((pscom_readall(con_fd, &arch, sizeof(arch)) != sizeof(arch)) ||
 	    (arch != PSCOM_ARCH_IVSHMEM))   /*error if partner is using other architecture (means not installed shm)*/
 		goto err_remote;
 
-	printf("ivshmem_connect says <read arch>\n");
+//	printf("ivshmem_connect says <read arch>\n");
 	/* step 2 : recv ivshmem info msg */
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) || !(strcmp(msg.hostname, ivshmem.device.metadata->hostname)) )  /*read info message and >CHECK HOSTNAME< */
 		goto err_remote;
 	
-	printf("ivshmem_connect says <recieved info msg>\n");
+//	printf("ivshmem_connect says <recieved info msg>\n");
 	
 	/* here we are on the same host :-) */
 //	ivshmem_init_ivshmem_conn(&ivshmem); //just init with NULL
 	err = pscom_ivshmem_initrecv(&ivshmem) || pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_buf_offset /*msg.ivshmem_id*/); // <==done
 
 
-	printf("ivshmem_connect says <TEST MARKE>\n");
+//	printf("ivshmem_connect says <TEST MARKE>\n");
 	pscom_ivshmem_init_direct(&ivshmem,/* msg.direct_ivshmem_id,*/ msg.direct_base);  //  <--- ToDO!!
 
 	
-	printf("ivshmem_connect says <initialized buffers>\n");
+//	printf("ivshmem_connect says <initialized buffers>\n");
 
 	/* step 3 : send ivshmem_id or error */
 	pscom_ivshmem_info_msg(&ivshmem, &msg);
@@ -725,19 +725,19 @@ int pscom_ivshmem_connect(pscom_con_t *con, int con_fd)
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 	if (err) goto err_local;
 	
-	printf("ivshmem_connect says < send msg >\n");
+//	printf("ivshmem_connect says < send msg >\n");
 
 	/* step 4: Inter VM SharedMemory initialized. Recv final ACK. */
 	if ((pscom_readall(con_fd, &ack, sizeof(ack)) != sizeof(ack)) ||  // stays the same
 	    (ack == -1)) goto err_ack;
 
 
-	printf("ivshmem_connect says <recived final Ack!>\n");
+//	printf("ivshmem_connect says <recived final Ack!>\n");
 
 	pscom_ivshmem_init_con(con, con_fd, &ivshmem); 
 
 
-	printf("ivshmem_connect says <reached the end! :-) >\n");
+//	printf("ivshmem_connect says <reached the end! :-) >\n");
 	return 1;
 	/* --- */
 
@@ -760,7 +760,7 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	psivshmem_info_msg_t msg;
 	int ack;
 
-	printf("ivshmem_accept says <hello World!>\n");
+//	printf("ivshmem_accept says <hello World!>\n");
 
 
 	ivshmem_init_ivshmem_conn(&ivshmem);  // +++++
@@ -774,33 +774,33 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	}
 
 	
-	printf("ivshmem_accept says <device initialized>\n");
+//	printf("ivshmem_accept says <device initialized>\n");
 
 	/* step 1:  Yes, we talk IVSHMEM. */
 	pscom_writeall(con_fd, &arch, sizeof(arch));
 
 
-	printf("ivshmem_accept says <written arch>\n");
+//	printf("ivshmem_accept says <written arch>\n");
 
 	/* step 2: Send ivshmem_id. */
 	pscom_ivshmem_info_msg(&ivshmem, &msg);
 	pscom_writeall(con_fd, &msg, sizeof(msg));
 
 	
-	printf("ivshmem_accept says <sent message (step 2)>\n");
+//	printf("ivshmem_accept says <sent message (step 2)>\n");
 
 	/* step 3: Recv ivshmem_id. */
 	if ((pscom_readall(con_fd, &msg, sizeof(msg)) != sizeof(msg)) /*||
 	    msg.ivshmem_buf_offset == -1*/) goto err_remote;
 
-	printf("ivshmem_accept says <buf_offset = %p >\n", msg.ivshmem_buf_offset);
-	printf("ivshmem_accept says <sent message (step 2b)>\n");
+//	printf("ivshmem_accept says <buf_offset = %p >\n", msg.ivshmem_buf_offset);
+//	printf("ivshmem_accept says <sent message (step 2b)>\n");
 	if (pscom_ivshmem_initsend(&ivshmem, msg.ivshmem_buf_offset)) goto err_local;
 
 		pscom_ivshmem_init_direct(&ivshmem,/* msg.direct_ivshmem_id,*/ msg.direct_base);  // ToDO!!
 
 
-	printf("ivshmem_accept says <revieved step 3>\n");
+//	printf("ivshmem_accept says <revieved step 3>\n");
 
 	/* step 4: inter VM SHM initialized. Send final ACK. */
 	ack = 0;
@@ -809,7 +809,7 @@ int pscom_ivshmem_accept(pscom_con_t *con, int con_fd)
 	pscom_ivshmem_init_con(con, con_fd, &ivshmem); //update function pointer -> 'now using ivshmem'!
 
 	
-	printf("ivshmem_accept says <reached the end! :-) >\n");
+//	printf("ivshmem_accept says <reached the end! :-) >\n");
 
 	return 1;
 	/* --- */
@@ -821,6 +821,26 @@ dont_use:
 	ivshmem_cleanup_ivshmem_conn(&ivshmem);
 	return 0; /* ivshmem failed */
 }
+
+void pscom_ivshmem_make_clean(){
+
+/*
+ * ToDo:
+ * implement global pointer to data or global pointer to buffers enable cleaning up the filesystem, because _make_clean cannot be called with parameters due to 
+ *
+ * clear the entries in the metadata with routines in psivshmem.c 
+ *
+ * Global structure with data for 
+ *
+ *
+*/	
+	
+	return;
+ err:
+	DPRINT(1, "pscom_ivshmem_make_clean not successful");
+}
+
+
 
 pscom_plugin_t pscom_plugin = {
 	.name		= "ivshmem",

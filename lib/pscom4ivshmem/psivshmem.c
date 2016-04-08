@@ -72,7 +72,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
     	psreadline_from_file(file_path,dev->name);	// check name
 	if (strncmp(dev->name, expectedDeviceName,7))  
 	{
-		printf("cont...\n");
+	//	printf("cont...\n");
 		continue; // wrong device name -> try next
 	}
     
@@ -119,7 +119,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
      	printf("Version \t= %s\n" ,dev->version); 
    */	
 
-     	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
+     //	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
 
     // 	close(dev_fd); //keep dev_fd alive!
     	fclose(fd);
