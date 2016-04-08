@@ -558,7 +558,12 @@ static
 void ivshmem_cleanup_ivshmem_conn(ivshmem_conn_t *ivshmem)
 {
 
-//	if (ivshmem.remote_com) psivshmem_free_mem(&ivshmem.device, ivshmem.remote_com, sizeof(ivshmem.remote_com));
+
+printf("pscom_ivshmem.c: ivshmem_cleanup_ivshmem_cleanup_ivshmem_conn:  ENTERED! ");
+
+	psivshmem_free_mem(&(ivshmem->device), ivshmem->remote_com, sizeof(psivshmem_com_t));
+
+
 
 printf("pscom_ivshmem.c: ivshmem_cleanup_ivshmem_conn says <Hello World, please implement me!>");
 
@@ -644,13 +649,14 @@ void pscom_ivshmem_init_con(pscom_con_t *con,
 	con->rendezvous_size = pscom.env.rendezvous_size_ivshmem;
 }
 
+/*
 static
 int ivshmem_is_local(pscom_con_t *con)
 {
 	return con->pub.remote_con_info.node_id == pscom_get_nodeid();
 }
 
-
+*/
 static
 void ivshmem_init_ivshmem_conn(ivshmem_conn_t *ivshmem)
 {

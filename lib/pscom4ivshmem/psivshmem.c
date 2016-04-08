@@ -232,8 +232,11 @@ int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
     while(sem_wait(&dev->metadata->meta_semaphore));
         for(n = index_low; n<=index_high;n++) {  //'unlock' all N used frames 	
 	    CLR_BIT(bitmap, n);
+	printf("psivshmem_free_mem(): cleared bit no.: %d\n",n);
 	}
     sem_post(&dev->metadata->meta_semaphore);
+
+return 0;
 
 }
 
