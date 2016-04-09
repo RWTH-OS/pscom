@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "psivshmem_malloc.h"
+#include "metadata.h"
 #include "pscom_env.h"
 #include "psivshmem.h"   //allows to handle pci device!
 
@@ -38,7 +39,7 @@ struct Psivshmem_config {
 static
 struct Psivhsmem_config psivshmem_config = {
 	.min_size = 32UL * 1024 * 1024 /* 32MiB */,
-	.max_size = 64UL * 1024 * 1024 // 31MiB     * 1024, /* 64 GiB */
+	.max_size = 64UL * 1024 * 1024, // 31MiB     * 1024, /* 64 GiB */
 
 };
 

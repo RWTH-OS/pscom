@@ -17,7 +17,7 @@ AM_CPPFLAGS += -DLIBDIR=\"$(libdir)\" -I$(top_srcdir)/lib/pscom
 
 lib_LTLIBRARIES = libpscom4ivshmem.la
 
-libpscom4ivshmem_la_SOURCES = pscom_ivshmem.c pscom_ivshmem.h psivshmem.c psivshmem.h metadata.h
+libpscom4ivshmem_la_SOURCES = pscom_ivshmem.c pscom_ivshmem.h psivshmem.c psivshmem.h metadata.h ##psivshmem_malloc.c psivshmem_malloc.h
 libpscom4ivshmem_la_CPPFLAGS = $(AM_CPPFLAGS) $(IVSHMEM_CPPFLAGS)
 libpscom4ivshmem_la_LDFLAGS = $(AM_LDFLAGS) $(IVSHMEM_LDFLAGS)
 libpscom4ivshmem_la_LIBADD =  -lpthread $(top_builddir)/lib/pscom/libpscom.la

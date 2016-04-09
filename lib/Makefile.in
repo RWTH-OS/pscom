@@ -197,7 +197,7 @@ am__define_uniq_tagged_files = \
   done | $(am__uniquify_input)`
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = pscom psmalloc psmalloc_ivshmem pscom4dapl pscom4elan \
+DIST_SUBDIRS = pscom psmalloc psmalloc4ivshmem pscom4dapl pscom4elan \
 	pscom4extoll pscom4velo pscom4gm pscom4mxm pscom4ofed \
 	pscom4openib pscom4ivshmem pscom4psm psport4 p4tcp
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -391,7 +391,7 @@ TXT2MAN = $(top_srcdir)/scripts/txt2man
 # FIXME: non-standard
 configdir = $(prefix)/config
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = pscom psmalloc psmalloc_ivshmem $(am__append_1) \
+SUBDIRS = pscom psmalloc psmalloc4ivshmem $(am__append_1) \
 	$(am__append_2) $(am__append_3) $(am__append_4) \
 	$(am__append_5) $(am__append_6) $(am__append_7) \
 	$(am__append_8) $(am__append_9) psport4 p4tcp
