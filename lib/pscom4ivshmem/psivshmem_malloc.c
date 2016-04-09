@@ -18,7 +18,7 @@
 
 #include "psivshmem_malloc.h"
 #include "pscom_env.h"
-
+#include "psivshmem.h"   //allows to handle pci device!
 
 struct Psivshmem psivshmem_info = {
 	.base = NULL,
@@ -38,7 +38,7 @@ struct Psivshmem_config {
 static
 struct Psivhsmem_config psivshmem_config = {
 	.min_size = 32UL * 1024 * 1024 /* 32MiB */,
-	.max_size = 64UL * 1024 * 1024 * 1024, /* 64 GiB */
+	.max_size = 64UL * 1024 * 1024 // 31MiB     * 1024, /* 64 GiB */
 
 };
 
@@ -50,31 +50,50 @@ int psivshmem_init_base(void)
 	void *buf;
 	size_t size = psivshmem_config.max_size;
 
+	ivshmem_conn_t ivshmem;
+	
+	psivshmem_init_uio_device(&ivshmem.device); //init device
+
+/*
+	buf = psivshmem_alloc_memory(&ivshmem->device, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
+
+	memset(buf, 0, sizeof(psivshmem_com_t));  // init with zeros
+*/
+
 	while (1) {
-		ivshmemid = shmget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
-		if (ivshmemid != -1) break; // success with size bytes
+	//	ivshmemid = shmget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
+	
+		buf = psivshmem_alloc_memory(&ivshmem->device, size); //returns ptr to first byte or NULL on error  
+
+		if (buf != 0) break; // success with size bytes
 		if (errno != ENOSPC && errno != EINVAL) goto err; // error, but not "No space left on device" or EINVAL
 		size = size * 3 / 4; // reduce allocated size
 		if (size < psivshmem_config.min_size) break;
 	}
-	if (ivshmemid == -1) goto err;
+	if (buf == 0 ) goto err;
 
-	buf = shmat(ivshmemid, 0, 0 /*SHM_RDONLY*/);
-	if (((long)buf == -1) || !buf) goto err_shmat;
+//	buf = shmat(ivshmemid, 0, 0 /*SHM_RDONLY*/);
 
-	shmctl(ivshmemid, IPC_RMID, NULL); /* remove ivshmemid after usage */
+
+//	if (((long)buf == -1) || !buf) goto err_shmat;
+
+//	shmctl(ivshmemid, IPC_RMID, NULL); /* remove ivshmemid after usage */   //UNSOLVED: How to remove mem region after usage? (clear bit in bitmap)!!
+
+	memset(buf, 0, size);  // init with zeros
+
 
 	psivshmem_info.base = psivshmem_info.tail = buf;
 	psivshmem_info.end = buf + size;
-	psivshmem_info.ivshmemid = ivshmemid;
+//	psivshmem_info.ivshmemid = ivshmemid;   not used anymore, c.f. psshm_malloc.c
 	psivshmem_info.size = size;
 
 	return 0;
 err:
 	return -1;
-err_shmat:
+/*err_shmat:
 	shmctl(ivshmemid, IPC_RMID, NULL);
 	return -1;
+*/
 }
 
 

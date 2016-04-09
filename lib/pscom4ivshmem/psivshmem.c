@@ -121,7 +121,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
 
      //	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
 
-    // 	close(dev_fd); //keep dev_fd alive!
+     	close(dev_fd); //keep dev_fd alive? --> no, mmap() saves required data internally, c.f.man pages
     	fclose(fd);
 	return 0;
 
@@ -313,7 +313,7 @@ void *psivshmem_alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
     return ptr;
 }
 
-int unmap_device(ivshmem_pci_dev_t *dev)
+int psivshmem_unmap_device(ivshmem_pci_dev_t *dev)
 {
 
 /*

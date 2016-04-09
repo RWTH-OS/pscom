@@ -207,6 +207,7 @@ AC_CONFIG_FILES(lib/pscom4ivshmem/Makefile)  #Added for IVSHMEM Plugin
 AC_CONFIG_FILES(lib/pscom4psm/Makefile)
 AC_CONFIG_FILES(lib/psmalloc/Makefile)
 AC_CONFIG_FILES(lib/psport4/Makefile)
+AC_CONFIG_FILES(lib/psmalloc_ivshmem/Makefile)
 AC_CONFIG_FILES(scripts/Makefile)
 
 AC_OUTPUT

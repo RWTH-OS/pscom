@@ -15,13 +15,13 @@ include $(top_srcdir)/common.am
 AM_LDFLAGS += -avoid-version
 AM_CPPFLAGS += -DLIBDIR=\"$(libdir)\" -I$(top_srcdir)/lib/pscom
 
-lib_LTLIBRARIES = libpsmalloc.la
+lib_LTLIBRARIES = libpsmallocinterVM.la
 
 
-libpsmalloc_la_SOURCES = psmalloc.c
-libpsmalloc_la_CPPFLAGS = $(AM_CPPFLAGS) $(PSM_CPPFLAGS)
-libpsmalloc_la_LDFLAGS = $(AM_LDFLAGS) $(PSM_LDFLAGS)
-libpsmalloc_la_LIBADD = $(top_builddir)/lib/pscom/libpscom.la
+libpsmallocinterVM_la_SOURCES = psmalloc_interVM.c psivshmem_malloc.h
+libpsmallocinterVM_la_CPPFLAGS = $(AM_CPPFLAGS) $(PSM_CPPFLAGS)
+libpsmallocinterVM_la_LDFLAGS = $(AM_LDFLAGS) $(PSM_LDFLAGS)
+libpsmallocinterVM_la_LIBADD = $(top_builddir)/lib/pscom/libpscom.la
 
 install-exec-hook:
 	cd $(DESTDIR)$(libdir) && $(RM) $(lib_LTLIBRARIES)
