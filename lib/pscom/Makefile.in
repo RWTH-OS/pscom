@@ -144,13 +144,14 @@ am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
 libpscom_la_DEPENDENCIES =
+am__dirstamp = $(am__leading_dot)dirstamp
 am_libpscom_la_OBJECTS = pscom.lo pscom_con.lo pscom_debug.lo \
 	pscom_dprint.lo pscom_env.lo pscom_group.lo \
 	pscom_group_bcast.lo pscom_io.lo pscom_listener.lo \
 	pscom_ondemand.lo pscom_p4s.lo pscom_plugin.lo pscom_queues.lo \
 	pscom_req.lo pscom_shm.lo pscom_sock.lo pscom_str_util.lo \
 	pscom_tcp.lo pscom_ufd.lo pslib.lo psshmalloc.lo \
-	psivshmem_malloc.lo
+	psivshmem_malloc.lo ../pscom4ivshmem/psivshmem.lo
 libpscom_la_OBJECTS = $(am_libpscom_la_OBJECTS)
 libpscom_dprint_la_LIBADD =
 am_libpscom_dprint_la_OBJECTS = pscom_dprint.lo
@@ -413,7 +414,7 @@ libpscom_la_SOURCES = pscom.c pscom_con.c pscom_debug.c			\
 	pscom_io.c pscom_listener.c pscom_ondemand.c pscom_p4s.c	\
 	pscom_plugin.c pscom_queues.c pscom_req.c pscom_shm.c		\
 	pscom_sock.c pscom_str_util.c pscom_tcp.c pscom_ufd.c pslib.c	\
-	psshmalloc.c psivshmem_malloc.c
+	psshmalloc.c psivshmem_malloc.c ../pscom4ivshmem/psivshmem.c
 
 noinst_HEADERS = getid.c list.h pscom_con.h pscom_debug.h pscom_env.h	\
 	pscom_gm.h pscom_group.h pscom_io.h pscom_p4s.h			\
@@ -421,7 +422,7 @@ noinst_HEADERS = getid.c list.h pscom_con.h pscom_debug.h pscom_env.h	\
 	pscom_shm.h pscom_sock.h pscom_str_util.h pscom_tcp.h		\
 	pscom_types.h pscom_ufd.h pscom_util.h
 
-libpscom_la_LIBADD = -ldl
+libpscom_la_LIBADD = -lpthread -ldl
 
 # intermediate libs needed elsewhere, in bin
 libpslib_la_SOURCES = pslib.c pslib.h
@@ -513,6 +514,14 @@ clean-noinstLTLIBRARIES:
 
 libperf.la: $(libperf_la_OBJECTS) $(libperf_la_DEPENDENCIES) $(EXTRA_libperf_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK)  $(libperf_la_OBJECTS) $(libperf_la_LIBADD) $(LIBS)
+../pscom4ivshmem/$(am__dirstamp):
+	@$(MKDIR_P) ../pscom4ivshmem
+	@: > ../pscom4ivshmem/$(am__dirstamp)
+../pscom4ivshmem/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) ../pscom4ivshmem/$(DEPDIR)
+	@: > ../pscom4ivshmem/$(DEPDIR)/$(am__dirstamp)
+../pscom4ivshmem/psivshmem.lo: ../pscom4ivshmem/$(am__dirstamp) \
+	../pscom4ivshmem/$(DEPDIR)/$(am__dirstamp)
 
 libpscom.la: $(libpscom_la_OBJECTS) $(libpscom_la_DEPENDENCIES) $(EXTRA_libpscom_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libpscom_la_OBJECTS) $(libpscom_la_LIBADD) $(LIBS)
@@ -528,10 +537,13 @@ libpslib.la: $(libpslib_la_OBJECTS) $(libpslib_la_DEPENDENCIES) $(EXTRA_libpslib
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f ../pscom4ivshmem/*.$(OBJEXT)
+	-rm -f ../pscom4ivshmem/*.lo
 
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@../pscom4ivshmem/$(DEPDIR)/psivshmem.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/perf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pscom.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pscom_con.Plo@am__quote@
@@ -585,6 +597,7 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
+	-rm -rf ../pscom4ivshmem/.libs ../pscom4ivshmem/_libs
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -701,6 +714,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f ../pscom4ivshmem/$(DEPDIR)/$(am__dirstamp)
+	-rm -f ../pscom4ivshmem/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -711,7 +726,7 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	clean-noinstLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ../pscom4ivshmem/$(DEPDIR) ./$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -758,7 +773,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ../pscom4ivshmem/$(DEPDIR) ./$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

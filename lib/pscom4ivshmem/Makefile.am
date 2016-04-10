@@ -22,5 +22,6 @@ libpscom4ivshmem_la_CPPFLAGS = $(AM_CPPFLAGS) $(IVSHMEM_CPPFLAGS)
 libpscom4ivshmem_la_LDFLAGS = $(AM_LDFLAGS) $(IVSHMEM_LDFLAGS)
 libpscom4ivshmem_la_LIBADD =  -lpthread $(top_builddir)/lib/pscom/libpscom.la
 
+
 install-exec-hook:
 	cd $(DESTDIR)$(libdir) && $(RM) $(lib_LTLIBRARIES)
