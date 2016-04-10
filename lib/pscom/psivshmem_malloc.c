@@ -17,9 +17,10 @@
 #include <string.h>
 
 #include "psivshmem_malloc.h"
-#include "metadata.h"
+#include "../pscom4ivshmem/metadata.h"
 #include "pscom_env.h"
-#include "psivshmem.h"   //allows to handle pci device!
+#include "../pscom4ivshmem/psivshmem.h"   //allows to handle pci device!
+#include "../pscom4ivshmem/pscom_ivshmem.h"
 
 struct Psivshmem psivshmem_info = {
 	.base = NULL,
@@ -37,7 +38,7 @@ struct Psivshmem_config {
 
 
 static
-struct Psivhsmem_config psivshmem_config = {
+struct Psivshmem_config psivshmem_config = {
 	.min_size = 32UL * 1024 * 1024 /* 32MiB */,
 	.max_size = 64UL * 1024 * 1024, // 31MiB     * 1024, /* 64 GiB */
 
@@ -53,7 +54,9 @@ int psivshmem_init_base(void)
 
 	ivshmem_conn_t ivshmem;
 	
-	psivshmem_init_uio_device(&ivshmem.device); //init device
+	ivshmem_pci_dev_t* device_ptr = &ivshmem.device;
+	
+	psivshmem_init_uio_device(device_ptr); //init device
 
 /*
 	buf = psivshmem_alloc_memory(&ivshmem->device, sizeof(psivshmem_com_t)); //returns ptr to first byte or NULL on error  
@@ -64,7 +67,7 @@ int psivshmem_init_base(void)
 	while (1) {
 	//	ivshmemid = shmget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
 	
-		buf = psivshmem_alloc_memory(&ivshmem->device, size); //returns ptr to first byte or NULL on error  
+		buf = psivshmem_alloc_memory(device_ptr,(int) size); //returns ptr to first byte or NULL on error  
 
 		if (buf != 0) break; // success with size bytes
 		if (errno != ENOSPC && errno != EINVAL) goto err; // error, but not "No space left on device" or EINVAL
