@@ -19,6 +19,7 @@
 
 //#include <sys/shm.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "list.h"
 #include "pscom_types.h"
 #include "pscom_plugin.h"
@@ -53,19 +54,17 @@ typedef struct ivshmem_msg_s {
 typedef struct psivshmem_info_msg_s {
 
 //	int ivshmem_id; /
-	int direct_ivshmem_id;	/* ivshmem direct shared mem id */
+
+//	int direct_ivshmem_id;	/* ivshmem direct shared mem id */
 	void *direct_base;	/* base pointer of the IVM shared mem segment */	
+	signed long direct_offset;
 
-	void *ivshmem_buf_offset;
-	char hostname[50];	/* for comparison */ 
+	long ivshmem_buf_offset;
+	char hostname[64];	/* for comparison */ 
 
-
-
-//	uint16_t	lid;
-//	uint32_t	qp_num;  /* QP number */
-//	void		*remote_ptr; /* Info about receive buffers */
-//	uint32_t	remote_rkey;
 } psivshmem_info_msg_t;
+
+
 typedef struct psivshmem_buf_s {
 	uint8_t _data[IVSHMEM_BUFLEN];
 	ivshmem_msg_t header;
@@ -76,6 +75,7 @@ typedef struct ivshmem_com_s {
 	psivshmem_buf_t	buf[IVSHMEM_BUFS];
 } psivshmem_com_t;
 
+
 typedef struct ivshmem_conn_s {
 	psivshmem_com_t	*local_com;  /* local */
 	psivshmem_com_t	*remote_com; /* remote */
@@ -84,7 +84,7 @@ typedef struct ivshmem_conn_s {
 	long		direct_offset; /* base offset for shm direct */
 	int		local_id;
 	int		remote_id;
-	void		*direct_base; /* shm direct base */
+	void 		*direct_base; /* shm direct base */
 
 	ivshmem_pci_dev_t device;
 

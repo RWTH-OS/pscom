@@ -58,8 +58,14 @@
 #define ENV_ARCH_PREFIX "PSP_"
 
 /* Use this, if ENV_ARCH_NEW_SHM is not set */
-#define ENV_ARCH_OLD_SHM "PSP_SHAREDMEM"
-#define ENV_ARCH_NEW_SHM ENV_ARCH_PREFIX "SHM"
+#define ENV_ARCH_OLD_SHM "PSP_IVSHMEM"
+#define ENV_ARCH_NEW_SHM ENV_ARCH_PREFIX "NEW_IVSHMEM"
+
+
+/* Use this, if ENV_ARCH_NEW_SHM is not set */
+#define ENV_ARCH_OLD_IVSHMEM "PSP_SHAREDMEM"
+#define ENV_ARCH_NEW_IVSHMEM ENV_ARCH_PREFIX "SHM"
+
 
 /* Use this, if ENV_ARCH_NEW_P4S is not set */
 #define ENV_ARCH_OLD_P4S "PSP_P4SOCK"
@@ -85,21 +91,22 @@
 #define ENV_OPENIB_LID_OFFSET "PSP_OPENIB_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
 
 
+//old ivshmem definitions (openib flavoured):
 /* IVSHMEM HCA and port */			// ############# ADDED ###########
-#define ENV_IVSHMEM_HCA "PSP_IVSHMEM_HCA"   /* default: first hca */
-#define ENV_IVSHMEM_PORT "PSP_IVSHMEM_PORT" /* default: port 1 */
-#define ENV_IVSHMEM_PATH_MTU "PSP_IVSHMEM_PATH_MTU" /* default: 3
-						     1 : IBV_MTU_256
-						     2 : IBV_MTU_512
-						     3 : IBV_MTU_1024 */
-#define ENV_IVSHMEM_SENDQ_SIZE "PSP_IVSHMEM_SENDQ_SIZE"
-#define ENV_IVSHMEM_RECVQ_SIZE "PSP_IVSHMEM_RECVQ_SIZE"
-#define ENV_IVSHMEM_COMPQ_SIZE "PSP_IVSHMEM_COMPQ_SIZE"
-#define ENV_IVSHMEM_PENDING_TOKENS "PSP_IVSHMEM_PENDING_TOKENS"
-#define ENV_IVSHMEM_GLOBAL_SENDQ "PSP_IVSHMEM_GLOBAL_SENDQ" /* bool: Use one sendq for all connections? default: 0(no) */
-#define ENV_IVSHMEM_EVENT_CNT "PSP_IVSHMEM_EVENT_CNT" /* bool: Be busy if outstanding_cq_entries is to high? default: 1(yes) */
-#define ENV_IVSHMEM_IGNORE_WRONG_OPCODES "PSP_IVSHMEM_IGNORE_WRONG_OPCODES" /* bool: ignore wrong cq opcodes */
-#define ENV_IVSHMEM_LID_OFFSET "PSP_IVSHMEM_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
+//#define ENV_IVSHMEM_HCA "PSP_IVSHMEM_HCA"   /* default: first hca */
+//#define ENV_IVSHMEM_PORT "PSP_IVSHMEM_PORT" /* default: port 1 */
+//#define ENV_IVSHMEM_PATH_MTU "PSP_IVSHMEM_PATH_MTU" /* default: 3
+//						     1 : IBV_MTU_256
+//						     2 : IBV_MTU_512
+//						     3 : IBV_MTU_1024 */
+//#define ENV_IVSHMEM_SENDQ_SIZE "PSP_IVSHMEM_SENDQ_SIZE"
+//#define ENV_IVSHMEM_RECVQ_SIZE "PSP_IVSHMEM_RECVQ_SIZE"
+//#define ENV_IVSHMEM_COMPQ_SIZE "PSP_IVSHMEM_COMPQ_SIZE"
+//#define ENV_IVSHMEM_PENDING_TOKENS "PSP_IVSHMEM_PENDING_TOKENS"
+//#define ENV_IVSHMEM_GLOBAL_SENDQ "PSP_IVSHMEM_GLOBAL_SENDQ" /* bool: Use one sendq for all connections? default: 0(no) */
+//#define ENV_IVSHMEM_EVENT_CNT "PSP_IVSHMEM_EVENT_CNT" /* bool: Be busy if outstanding_cq_entries is to high? default: 1(yes) */
+//#define ENV_IVSHMEM_IGNORE_WRONG_OPCODES "PSP_IVSHMEM_IGNORE_WRONG_OPCODES" /* bool: ignore wrong cq opcodes */
+//#define ENV_IVSHMEM_LID_OFFSET "PSP_IVSHMEM_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
 
 
 /* OFED HCA and port */
@@ -136,6 +143,12 @@
 #define ENV_MALLOC "PSP_MALLOC" /* bool: Use a hook into glibc malloc (__morecore())? default: 1(yes) */
 #define ENV_MALLOC_MIN "PSP_MALLOC_MIN" /* ulong: minimum size of the shared mem segment */
 #define ENV_MALLOC_MAX "PSP_MALLOC_MAX" /* ulong: maximum size of the shared mem segment */
+
+
+#define ENV_IVSHMEM_MALLOC "PSP_IVSHMEM_MALLOC" /* bool: Use a hook into glibc malloc (__morecore())? default: 1(yes) */
+#define ENV_IVSHMEM_MALLOC_MIN "PSP_IVSHMEM_MALLOC_MIN" /* ulong: minimum size of the shared mem segment */
+#define ENV_IVSHMEM_MALLOC_MAX "PSP_IVSHMEM_MALLOC_MAX" /* ulong: maximum size of the shared mem segment */
+
 
 /* Use shm direct for messages >= PSP_SHM_DIRECT. Set PSP_SHM_DIRECT=-1 to disable shm direct. */
 #define ENV_SHM_DIRECT "PSP_SHM_DIRECT" /* min message size to use shm direct */

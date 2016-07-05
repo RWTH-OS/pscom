@@ -437,7 +437,7 @@ void shm_do_write(pscom_con_t *con)
 			pscom_write_done(con, req, len);
 		} else if (is_psshm_ptr(iov[1].iov_base)) {
 			/* Direct send : Send a reference to the data iov[1]. */
-
+//printf("do_write: direct send!\n");
 			shm_msg_t *msg = shm_iovsend_direct(&con->arch.shm, iov);
 
 			pscom_write_pending(con, req, iov[0].iov_len + iov[1].iov_len);
@@ -451,7 +451,7 @@ void shm_do_write(pscom_con_t *con)
 		} else {
 			/* Indirect send : Copy data iov[1] to a shared region and send a reference to it. */
 			/* Size is good for direct send, but the data is not inside the shared mem region */
-
+//printf("do_write: indirect send!\n");
 			void *data;
 			shm_msg_t *msg;
 

@@ -11,7 +11,8 @@
 
 #include "metadata.h" // include metadata struct && keep it synced with server metadata.h !
 
-#define UIO_MAX_NAME_SIZE 50
+
+#define UIO_MAX_NAME_SIZE 65
 
 //some bitmanipulation stuff:
 #define WORD_SIZE (CHAR_BIT * sizeof(unsigned int))
@@ -23,10 +24,10 @@
 typedef struct ivshmem_pci_dev_s {
 	meta_data_t *metadata;
 	int uioN_index;
-	char name[50];
-	char version[50];
-	char str_map1_size_hex[50];
-	long int map1_size_Byte;
+	char name[65];
+	char version[65];
+	char str_map1_size_hex[65];
+	unsigned long map1_size_Byte;
 	float  map1_size_MiB;
 	void* iv_shm_base;
 	
@@ -35,10 +36,10 @@ typedef struct ivshmem_pci_dev_s {
 //prototypes:
 
 int psivshmem_find_uio_device(ivshmem_pci_dev_t*);
-int test_alloc(ivshmem_pci_dev_t*, int);
+unsigned long test_alloc(ivshmem_pci_dev_t*, size_t);
 int free_frame(ivshmem_pci_dev_t*, void*);
 void *alloc_frame(ivshmem_pci_dev_t*);
-void *psivshmem_alloc_memory(ivshmem_pci_dev_t*, int);
+void *psivshmem_alloc_mem(ivshmem_pci_dev_t*, size_t);
 int unmap_device(ivshmem_pci_dev_t*);
 
 

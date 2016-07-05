@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <malloc.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "psivshmem_malloc.h"
 #include "../pscom4ivshmem/metadata.h"
@@ -22,11 +23,12 @@
 #include "../pscom4ivshmem/psivshmem.h"   //allows to handle pci device!
 #include "../pscom4ivshmem/pscom_ivshmem.h"
 
-struct Psivshmem psivshmem_info = {
+struct Psivshmem psivshmem_direct_info = {
 	.base = NULL,
+	.baseoffset = 0,
 	.tail = NULL,
 	.size = 0,
-	.ivshmemid = -1,
+//	.ivshmemid = 0,
 	.msg = "libpsivshmem_malloc.so not linked.",
 };
 
@@ -40,7 +42,7 @@ struct Psivshmem_config {
 static
 struct Psivshmem_config psivshmem_config = {
 	.min_size = 32UL * 1024 * 1024 /* 32MiB */,
-	.max_size = 64UL * 1024 * 1024, // 31MiB     * 1024, /* 64 GiB */
+	.max_size = 64UL *1024 * 1024, // 64MiB     * 1024, /* 64 GiB */
 
 };
 
@@ -48,7 +50,7 @@ struct Psivshmem_config psivshmem_config = {
 static
 int psivshmem_init_base(void)
 {
-	int ivshmemid;
+//	int ivshmemid;
 	void *buf;
 	size_t size = psivshmem_config.max_size;
 
@@ -67,10 +69,10 @@ int psivshmem_init_base(void)
 	while (1) {
 	//	ivshmemid = shmget(/*key*/0, size,  /*SHM_HUGETLB |*/ SHM_NORESERVE | IPC_CREAT | 0777);
 	
-		buf = psivshmem_alloc_memory(device_ptr,(int) size); //returns ptr to first byte or NULL on error  
+		buf = psivshmem_alloc_mem(device_ptr,size); //returns ptr to first byte or NULL on error  
 
 		if (buf != 0) break; // success with size bytes
-		if (errno != ENOSPC && errno != EINVAL) goto err; // error, but not "No space left on device" or EINVAL
+	//	if (errno != ENOSPC && errno != EINVAL) goto err; // error, but not "No space left on device" or EINVAL
 		size = size * 3 / 4; // reduce allocated size
 		if (size < psivshmem_config.min_size) break;
 	}
@@ -86,10 +88,13 @@ int psivshmem_init_base(void)
 	memset(buf, 0, size);  // init with zeros
 
 
-	psivshmem_info.base = psivshmem_info.tail = buf;
-	psivshmem_info.end = buf + size;
-//	psivshmem_info.ivshmemid = ivshmemid;   not used anymore, c.f. psshm_malloc.c
-	psivshmem_info.size = size;
+	psivshmem_direct_info.base = psivshmem_direct_info.tail = buf;
+	psivshmem_direct_info.baseoffset =(char*)buf - (char*)(ivshmem.device.iv_shm_base);
+	psivshmem_direct_info.end = buf + size;
+//	psivshmem_direct_info.ivshmemid = ivshmemid;   not used anymore, c.f. psshm_malloc.c
+	psivshmem_direct_info.size = size;
+
+	printf("device_base_address=%p, malloc_core_base=%p , baseoffset=%lu , end=%p , size =%lu\n ",ivshmem.device.iv_shm_base,buf,psivshmem_direct_info.baseoffset, psivshmem_direct_info.end, psivshmem_direct_info.size);
 
 	return 0;
 err:
@@ -107,19 +112,19 @@ err:
 static
 void *psivshmem_morecore (ptrdiff_t increment)
 {
-	void * oldtail = psivshmem_info.tail;
-	// printf("Increase mem : %ld\n", increment);
+	void * oldtail = psivshmem_direct_info.tail;
+	// printf("Increase mem : %td\n", increment);
 
-	assert(psivshmem_info.base);
+	assert(psivshmem_direct_info.base);
 	if (increment <= 0) {
-		psivshmem_info.tail += increment;
+		psivshmem_direct_info.tail += increment;
 	} else {
-		if ((psivshmem_info.tail + increment) >= psivshmem_info.end) {
-			// fprintf(stderr, "Out of mem\n");
+		if ((psivshmem_direct_info.tail + increment) >= psivshmem_direct_info.end) {
+			// printf("morecore: Out of mem\n");
 			// errno = ENOMEM;
 			return NULL;
 		}
-		psivshmem_info.tail += increment;
+		psivshmem_direct_info.tail += increment;
 	}
 
 	return oldtail;
@@ -141,19 +146,21 @@ void psivshmem_init()
 {
 	/* Hook into the malloc handler with __morecore... */
 
+printf("HI! :-)\n");
 	unsigned long enabled = 1;
 
 	/* Disabled by "PSP_MALLOC=0, PSP_SHAREDMEM=0 or PSP_SHM=0? */
-	getenv_ulong(&enabled, ENV_MALLOC);
+	getenv_ulong(&enabled, ENV_IVSHMEM_MALLOC);
 	if (!enabled) goto out_disabled;
 
-	getenv_ulong(&enabled, ENV_ARCH_OLD_SHM);
-	getenv_ulong(&enabled, ENV_ARCH_NEW_SHM);
+	getenv_ulong(&enabled, ENV_ARCH_OLD_IVSHMEM);
+	getenv_ulong(&enabled, ENV_ARCH_NEW_IVSHMEM);
 	if (!enabled) goto out_disabled_ivshmem;
 
+//printf("testmark 1\n");
 	/* Get parameters from the environment */
-	getenv_ulong(&psivshmem_config.min_size, ENV_MALLOC_MIN);
-	getenv_ulong(&psivshmem_config.max_size, ENV_MALLOC_MAX);
+	getenv_ulong(&psivshmem_config.min_size, ENV_IVSHMEM_MALLOC_MIN);
+	getenv_ulong(&psivshmem_config.max_size, ENV_IVSHMEM_MALLOC_MAX);
 
 	/* Initialize shared mem region */
 	if (psivshmem_init_base()) goto err_init_base;
@@ -164,21 +171,22 @@ void psivshmem_init()
 
 	__morecore = psivshmem_morecore;
 
+//printf("testmark 8\n");
 	return;
 out_disabled:
-	psivshmem_info.msg = "disabled by " ENV_MALLOC " = 0";
+	psivshmem_direct_info.msg = "disabled by " ENV_IVSHMEM_MALLOC " = 0";
 	return;
 out_disabled_ivshmem:
-	psivshmem_info.msg = "disabled by " ENV_ARCH_NEW_SHM " = 0";
+	psivshmem_direct_info.msg = "disabled by " ENV_ARCH_NEW_IVSHMEM " = 0";
 	return;
 err_init_base:
 	{
 		static char msg[170];
 		snprintf(msg, sizeof(msg), "failed. "
-			 ENV_MALLOC_MIN " = %lu " ENV_MALLOC_MAX " = %lu : %s (\"/proc/sys/kernel/shmmax\" to small?)",
+			 ENV_IVSHMEM_MALLOC_MIN " = %lu " ENV_IVSHMEM_MALLOC_MAX " = %lu : %s (\"/proc/sys/kernel/shmmax\" to small?)",
 			 psivshmem_config.min_size, psivshmem_config.max_size,
 			 strerror(errno));
-		psivshmem_info.msg = msg;
+		psivshmem_direct_info.msg = msg;
 	}
 	// fprintf(stderr, "psivshmem_init failed : %s\n", strerror(errno));
 	return;

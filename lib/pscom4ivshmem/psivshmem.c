@@ -63,16 +63,20 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
     for(n = 0; n<1001;n++) //avoid infinite loop
     {
 	
-      	sprintf(file_path, "/sys/class/uio/uio%d/name", n);
-      	
+	printf("string_length=%d\n" ,  sprintf(file_path, "/sys/class/uio/uio%d/name", n));
+
+	printf("file_path=%s!\n",file_path);      
+
+	
 	fd = fopen(file_path, "r");  // Is any uioN file availabe? -> device is, too! 
+	printf("fd=%d\n",fd);
 	if (!fd){ goto no_device;}
 	fclose(fd);	
 
     	psreadline_from_file(file_path,dev->name);	// check name
 	if (strncmp(dev->name, expectedDeviceName,7))  
 	{
-	//	printf("cont...\n");
+		printf("cont...\n");
 		continue; // wrong device name -> try next
 	}
     
@@ -88,17 +92,26 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
    	sprintf(file_path, "/sys/class/uio/uio%d/maps/map1/size", n);
     	psreadline_from_file(file_path, dev->str_map1_size_hex);
    
-//     	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
+    	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
     	dev->map1_size_Byte = strtol(dev->str_map1_size_hex, NULL, 0);
+
+	printf("size in ind byte=%lu\n",dev->map1_size_Byte);
 
     	dev->map1_size_MiB   =  dev->map1_size_Byte / (float)1024 / (float)1024; // Byte -> KiB -> MiB
 
+	printf("Marke A\n");
+
     	sprintf(file_path, "/sys/class/uio/uio%d/version", n);
-    	psreadline_from_file(file_path,dev->version);
+
+	printf("Marke B\n");
+
+//    	psreadline_from_file(file_path,dev->version);
    
+	printf("trying to mmap()...");
  
         void *map_addr = mmap(NULL,dev->map1_size_Byte, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd,1 * getpagesize());  // last param. overloaded for ivshmem -> 2 memorysegments available; Reg.= 0;  Data = 1;
 	
+	printf("mmap() successfull!");
 
 	dev->metadata = (meta_data_t *) map_addr;  //map metadata!
 	dev->iv_shm_base = map_addr; 
@@ -117,7 +130,7 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
      	printf("Devicename \t= %s\n" ,dev->name); 
      	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
      	printf("Version \t= %s\n" ,dev->version); 
-   */	
+   */
 
      //	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
 
@@ -141,7 +154,7 @@ device_error:
 }
 
 
-int test_alloc(ivshmem_pci_dev_t *dev, int size){
+unsigned long test_alloc(ivshmem_pci_dev_t *dev, size_t size){
 /*
  * first implementation: First Fit
  *
@@ -152,11 +165,11 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
  *
  * */	
 
-  //  printf("test_alloc says <hello World!>\n");
+   // printf("test_alloc says <hello World!>\n");
 
-    unsigned int n;
-    int cnt = 0;
-    unsigned int *bitmap =(unsigned int*) (dev->iv_shm_base + (long)dev->metadata->bitmapOffset);
+    unsigned long n;
+    unsigned long cnt = 0i;
+    unsigned int  *bitmap =(unsigned int*) (dev->iv_shm_base + (unsigned long)dev->metadata->bitmapOffset);
 
 
    // printf("test_alloc says <size: %d>\n",size);
@@ -165,7 +178,7 @@ int test_alloc(ivshmem_pci_dev_t *dev, int size){
     {
 
 
-   // printf("test_alloc says <hello out of the loop:%d>\n",n);
+//    printf("test_alloc says <hello out of the loop:%d>\n",n);
 //	printf("bitmap bit no %d = %d\n",n,CHECK_BIT(bitmap,n));
 
 	if (!CHECK_BIT(bitmap,n))
@@ -198,8 +211,8 @@ int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
  * ToDo2: clear VM ID in every frame
  *
  */
-    int n; 
-    int index;
+    long n; 
+    long index;
     unsigned *bitmap = (unsigned int*)(dev->iv_shm_base + dev->metadata->bitmapOffset);
 
     index = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize;
@@ -210,7 +223,7 @@ int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 
 }
 
-int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
+int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, size_t size)
 {
 /*
  * first implementation: just clear corresponding bit in bitmap -> frame is available
@@ -222,8 +235,8 @@ int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
  *
  *
  */
-    int n; 
-    int index_low, index_high;
+    long n; 
+    long index_low, index_high;
     unsigned *bitmap = (unsigned int*)(dev->iv_shm_base + dev->metadata->bitmapOffset);
 
     index_low = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize; //has to be a multiple of it!
@@ -232,7 +245,7 @@ int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, int size)
     while(sem_wait(&dev->metadata->meta_semaphore));
         for(n = index_low; n<=index_high;n++) {  //'unlock' all N used frames 	
 	    CLR_BIT(bitmap, n);
-	printf("psivshmem_free_mem(): cleared bit no.: %d\n",n);
+//	printf("psivshmem_free_mem(): cleared bit no.: %d\n",n);
 	}
     sem_post(&dev->metadata->meta_semaphore);
 
@@ -269,25 +282,27 @@ void *alloc_frame(ivshmem_pci_dev_t *dev)
 
 //ToDo: move frameSize to ivshmem_dev infos!
 
-void *psivshmem_alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
+void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
 {
-    int n;
-    int index;
-    int frame_qnt = 0;
+   long n;
+   long index;
+   long frame_qnt = 0;
     void *ptr = NULL;
     unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + (long) dev->metadata->bitmapOffset);
 
 
-   // printf("psivshmem_alloc_memory says <hello World!>\n");
+//    printf("psivshmem_alloc_memory says <hello World!>\n");
 
     frame_qnt = (sizeByte + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
 
     while(sem_wait(&dev->metadata->meta_semaphore));
 
-   // printf("psivshmem_alloc_memory says <locked the mutex>\n");
+//    printf("psivshmem_alloc_memory says <locked the mutex>\n");
+    
+
     index = test_alloc(dev ,frame_qnt);
 
-  //  printf("psivshmem_alloc_memory says <index = %d>\n",index);
+//    printf("psivshmem_alloc_memory says <index = %d>\n",index);
 
     if(index == -1) return ptr;  // error! not enough memory
 
@@ -296,7 +311,7 @@ void *psivshmem_alloc_memory(ivshmem_pci_dev_t *dev, int sizeByte)
     {
 	SET_BIT(bitmap,n);  //ToDo: maybe possible: macro to set more bits "at once"
 	
- //  	 printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);
+//   	 printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);
 	
     }
     

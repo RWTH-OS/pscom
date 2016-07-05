@@ -431,7 +431,7 @@ extern pscom_t pscom;
 #define PSCOM_EXTOLL_PRIO	30
 #define PSCOM_PSM_PRIO		30
 #define PSCOM_MXM_PRIO		30
-#define PSCOM_IVSHMEM_PRIO	50
+#define PSCOM_IVSHMEM_PRIO	80
 
 
 #define PSCOM_MSGTYPE_USER	0
