@@ -1,9 +1,8 @@
 /*
- * Author: JonBau
+ * Author: Jonas Baude
  */
 
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -20,13 +19,21 @@
 #include <semaphore.h>
 #include <sys/mman.h>
 
-
-
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 
+int psivshmem_debug = 2;
+FILE *psivshmem_debug_stream = NULL;
 
+#define psivshmem_dprint(level,fmt,arg... )                                 	\
+    do {                                                                	\
+        if ((level) <= psivshmem_debug) {                                   	\
+            fprintf(psivshmem_debug_stream ? psivshmem_debug_stream : stderr,   \
+                    "ib:" fmt "\n",##arg);                              	\
+        }                                                               	\
+    } while(0);
 
 
 
@@ -47,9 +54,10 @@ int psreadline_from_file(char *fname, char *lbuf) //(filename, linebufer)
 	return 0;
 }
 
-int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) device 
+int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the device 
 {
     int n;
+    struct dirent **namelist;
     int dev_fd;
     FILE* fd;
     char file_path[UIO_MAX_NAME_SIZE];    
@@ -57,98 +65,87 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the right (!) devi
     char map_size[UIO_MAX_NAME_SIZE];    
     char version[UIO_MAX_NAME_SIZE];    
 
+    char expectedDeviceName[20] = "ivshmem";  // identify the ivshmem device by compareing the device name to 'ivshmem'
 
-    char expectedDeviceName[20] = "ivshmem";
 
-    for(n = 0; n<1001;n++) //avoid infinite loop
-    {
+    n = scandir("/sys/class/uio", &namelist, 0, alphasort);
+    if (n<0) goto no_device;
+
+    while(n--) {
 	
-	printf("string_length=%d\n" ,  sprintf(file_path, "/sys/class/uio/uio%d/name", n));
-
-	printf("file_path=%s!\n",file_path);      
+	//printf("n=%d",n);
 
 	
-	fd = fopen(file_path, "r");  // Is any uioN file availabe? -> device is, too! 
-	printf("fd=%d\n",fd);
-	if (!fd){ goto no_device;}
-	fclose(fd);	
+	sprintf(file_path, "/sys/class/uio/%s/name", namelist[n]->d_name);
+//	printf("file_path = %s", file_path);
+	
+//	fd = fopen(file_path, "r");  // Is any uioN file availabe? -> device is, too! 
+//	if (!fd){ goto no_device;}
+//	fclose(fd);	
+// old implementation with for-loop
+
 
     	psreadline_from_file(file_path,dev->name);	// check name
 	if (strncmp(dev->name, expectedDeviceName,7))  
 	{
-		printf("cont...\n");
+		//printf("cont...\n");
+		free(namelist[n]);
 		continue; // wrong device name -> try next
 	}
     
 	//if name suits try to open char_dev file and read dev_specs:
-	
 
-   	sprintf(file_path, "/dev/uio%d", n);
-     	dev_fd = open(file_path, O_RDWR);
+	sprintf(file_path, "/dev/%s", namelist[n]->d_name);
+     	
+	dev_fd = open(file_path, O_RDWR);
 	if (dev_fd == -1) {goto device_error;}
 	
-
-
-   	sprintf(file_path, "/sys/class/uio/uio%d/maps/map1/size", n);
+   	sprintf(file_path, "/sys/class/uio/%s/maps/map1/size", namelist[n]->d_name);
     	psreadline_from_file(file_path, dev->str_map1_size_hex);
    
-    	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
+    //	printf("Map_Size \t= %s\n" , dev->str_map1_size_hex); 
     	dev->map1_size_Byte = strtol(dev->str_map1_size_hex, NULL, 0);
 
-	printf("size in ind byte=%lu\n",dev->map1_size_Byte);
+//	printf("size in ind byte=%lu\n",dev->map1_size_Byte);
+	psivshmem_dprint(3, "Mapped Memory Size: %lu",dev->map1_size_Byte);
 
     	dev->map1_size_MiB   =  dev->map1_size_Byte / (float)1024 / (float)1024; // Byte -> KiB -> MiB
 
-	printf("Marke A\n");
-
-    	sprintf(file_path, "/sys/class/uio/uio%d/version", n);
-
-	printf("Marke B\n");
+    	sprintf(file_path, "/sys/class/uio/%s/version", namelist[n]->d_name);
 
 //    	psreadline_from_file(file_path,dev->version);
    
-	printf("trying to mmap()...");
  
         void *map_addr = mmap(NULL,dev->map1_size_Byte, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd,1 * getpagesize());  // last param. overloaded for ivshmem -> 2 memorysegments available; Reg.= 0;  Data = 1;
 	
-	printf("mmap() successfull!");
 
 	dev->metadata = (meta_data_t *) map_addr;  //map metadata!
 	dev->iv_shm_base = map_addr; 
 
-
 	if(dev->metadata->magic != META_MAGIC) goto not_initialised; 
 	
-
-	//add map to device struct
-	//
-	//add Reg memory -> VM ID
-	//
-	//add version check
-   /* 
-     	printf("Device_infos:\n");
+    
+/*     	printf("Device_infos:\n");
      	printf("Devicename \t= %s\n" ,dev->name); 
      	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
-     	printf("Version \t= %s\n" ,dev->version); 
-   */
+   
+*/
 
-     //	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
-
+	
      	close(dev_fd); //keep dev_fd alive? --> no, mmap() saves required data internally, c.f.man pages
-    	fclose(fd);
+	free(namelist);
 	return 0;
 
     }
 
 not_initialised:
-    printf("Unable to find initialised metadata\n");
+    psivshmem_dprint(0,"Unable to find initialised metadata\n");
     return -1;
 no_device:
-    //fclose(fd); //quatsch, -> file konnte ja gar nicht geoeffnet werden!
-    printf("no suitable pci dev\n");
+    psivshmem_dprint(0,"no suitable pci dev\n");
     return -1;
 device_error:
-    printf("device not available\n");
+    psivshmem_dprint(0,"device not available\n");
     return -1;
 
 }
@@ -165,20 +162,16 @@ unsigned long test_alloc(ivshmem_pci_dev_t *dev, size_t size){
  *
  * */	
 
-   // printf("test_alloc says <hello World!>\n");
 
     unsigned long n;
-    unsigned long cnt = 0i;
+    unsigned long cnt = 0;
     unsigned int  *bitmap =(unsigned int*) (dev->iv_shm_base + (unsigned long)dev->metadata->bitmapOffset);
 
-
-   // printf("test_alloc says <size: %d>\n",size);
 
     for(n=0; n< dev->metadata->numOfFrames; n++)
     {
 
 
-//    printf("test_alloc says <hello out of the loop:%d>\n",n);
 //	printf("bitmap bit no %d = %d\n",n,CHECK_BIT(bitmap,n));
 
 	if (!CHECK_BIT(bitmap,n))
@@ -189,7 +182,7 @@ unsigned long test_alloc(ivshmem_pci_dev_t *dev, size_t size){
 	    cnt = 0;
 	}
 	
-	//check if pointer has a plausible value <-> ptr != 0
+
 	
 	// return index of first free frame belonging to a block of at least N free frames! 
 	if (cnt >= size) {
@@ -204,11 +197,7 @@ unsigned long test_alloc(ivshmem_pci_dev_t *dev, size_t size){
 int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 {
 /*
- * first implementation: just clear corresponding bit in bitmap -> frame is available
- *
- * ToDo: add Mutex!!
- *
- * ToDo2: clear VM ID in every frame
+ * first implementation: just clear corresponding bit in bitmap -> frame is available again
  *
  */
     long n; 
@@ -218,7 +207,9 @@ int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
     index = (frame_ptr - dev->iv_shm_base) / dev->metadata->frameSize;
  
     while(sem_wait(&dev->metadata->meta_semaphore));
+
 	CLR_BIT(bitmap,index);
+
     sem_post(&dev->metadata->meta_semaphore);
 
 }
@@ -227,8 +218,6 @@ int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, size_t size)
 {
 /*
  * first implementation: just clear corresponding bit in bitmap -> frame is available
- *
- * [---ToDo2: clear VM ID in every frame---]
  *
  * "a = b/c"  int division round up
  * int a = (b + (c - 1)) / c  <- rounds up for positiv int, e.g. frameIndices
@@ -243,17 +232,21 @@ int psivshmem_free_mem(ivshmem_pci_dev_t *dev, void * frame_ptr, size_t size)
     index_high = (frame_ptr - dev->iv_shm_base + size + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
  
     while(sem_wait(&dev->metadata->meta_semaphore));
+
         for(n = index_low; n<=index_high;n++) {  //'unlock' all N used frames 	
+	   
 	    CLR_BIT(bitmap, n);
-//	printf("psivshmem_free_mem(): cleared bit no.: %d\n",n);
+	    //printf("psivshmem_free_mem(): cleared bit no.: %d\n",n);
+	   // psivshmem_dprint(4,"psivshmem_free_mem(): cleared bit no.: %d\n",n);
 	}
-    sem_post(&dev->metadata->meta_semaphore);
+   
+     sem_post(&dev->metadata->meta_semaphore);
 
 return 0;
 
 }
 
-void *alloc_frame(ivshmem_pci_dev_t *dev)
+/*void *alloc_frame(ivshmem_pci_dev_t *dev)
 {   
     int n = 0;
     int index = 0;
@@ -278,7 +271,8 @@ void *alloc_frame(ivshmem_pci_dev_t *dev)
 
     return ptr;
 
-}
+} */
+
 
 //ToDo: move frameSize to ivshmem_dev infos!
 
@@ -287,22 +281,19 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
    long n;
    long index;
    long frame_qnt = 0;
-    void *ptr = NULL;
-    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + (long) dev->metadata->bitmapOffset);
+   void *ptr = NULL;
+   unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + (long) dev->metadata->bitmapOffset);
 
-
-//    printf("psivshmem_alloc_memory says <hello World!>\n");
 
     frame_qnt = (sizeByte + (dev->metadata->frameSize - 1)) / dev->metadata->frameSize;
 
-    while(sem_wait(&dev->metadata->meta_semaphore));
 
-//    printf("psivshmem_alloc_memory says <locked the mutex>\n");
+    while(sem_wait(&dev->metadata->meta_semaphore));
     
 
     index = test_alloc(dev ,frame_qnt);
 
-//    printf("psivshmem_alloc_memory says <index = %d>\n",index);
+  psivshmem_dprint(5,"psivshmem_alloc_memory: index= %d\n",index);
 
     if(index == -1) return ptr;  // error! not enough memory
 
@@ -311,8 +302,9 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
     {
 	SET_BIT(bitmap,n);  //ToDo: maybe possible: macro to set more bits "at once"
 	
-//   	 printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);
-	
+   	 //printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);	
+  	 psivshmem_dprint(5,"psivshmem_alloc_memory:  <SET_BIT no %d>\n",n);
+//
     }
     
     sem_post(&dev->metadata->meta_semaphore);
@@ -322,9 +314,6 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
 //	printf("ivshmem base ptr = %p\n", dev->iv_shm_base);
 //	printf("ivshmem mem ptr = %p\n",ptr);
 
-
-
-//    printf("psivshmem_alloc_memory says <reached the end! :-) >\n");
     return ptr;
 }
 
@@ -339,39 +328,3 @@ int psivshmem_unmap_device(ivshmem_pci_dev_t *dev)
     return -1;
 }
 
-//ToDo
-/*
- * [void *alloc_frame(dev);]	//buffered ->only one frame
- * void *alloc_memory(dev, int sizeByte); 	//direct Mode -> returns more than one frame
- * [int free_frame(void *ptr);]
- * [int test_alloc(int size);] size in frames!
- * int unmap_device(--device);
- *
- * [ ... ] <=> done!
- *
- * ToDo:
- * 	implement: find out that VMs has been migrated ->change in Hostname, e.g.
- *
- *
- *
- */
-
-
-
-
-
-
-
-
-/*
-int main(){
-	
-
- 
-   ivshmem_pci_dev_t  device;
-    
-   psivshmem_find_uio_device(&device);
-	
-   return;
-}
-*/

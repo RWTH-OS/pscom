@@ -8,6 +8,7 @@
 
 #include <limits.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "metadata.h" // include metadata struct && keep it synced with server metadata.h !
 
@@ -42,6 +43,10 @@ void *alloc_frame(ivshmem_pci_dev_t*);
 void *psivshmem_alloc_mem(ivshmem_pci_dev_t*, size_t);
 int unmap_device(ivshmem_pci_dev_t*);
 
+//externs:
 
+
+extern int psivshmem_debug;
+extern FILE *psivshmem_debug_stream; /* Stream to use for debug output */
 
 #endif /* _PSIVSHMEM_H_ */
