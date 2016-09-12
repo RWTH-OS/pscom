@@ -41,6 +41,7 @@ unsigned long test_alloc(ivshmem_pci_dev_t*, size_t);
 int free_frame(ivshmem_pci_dev_t*, void*);
 void *alloc_frame(ivshmem_pci_dev_t*);
 void *psivshmem_alloc_mem(ivshmem_pci_dev_t*, size_t);
+int psivshmem_free_mem(ivshmem_pci_dev_t*, void*, size_t);
 int unmap_device(ivshmem_pci_dev_t*);
 
 //externs:

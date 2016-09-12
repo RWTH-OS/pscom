@@ -139,13 +139,13 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the device
     }
 
 not_initialised:
-    psivshmem_dprint(0,"Unable to find initialised metadata\n");
+    DPRINT(1,"Unable to find initialised metadata\n");
     return -1;
 no_device:
-    psivshmem_dprint(0,"no suitable pci dev\n");
+    DPRINT(1,"no suitable pci dev\n");
     return -1;
 device_error:
-    psivshmem_dprint(0,"device not available\n");
+    DPRINT(1,"device not available\n");
     return -1;
 
 }
@@ -163,7 +163,7 @@ unsigned long test_alloc(ivshmem_pci_dev_t *dev, size_t size){
  * */	
 
 
-    unsigned long n;
+    long n;
     unsigned long cnt = 0;
     unsigned int  *bitmap =(unsigned int*) (dev->iv_shm_base + (unsigned long)dev->metadata->bitmapOffset);
 
@@ -211,6 +211,8 @@ int psivhmem_free_frame(ivshmem_pci_dev_t *dev, void * frame_ptr)
 	CLR_BIT(bitmap,index);
 
     sem_post(&dev->metadata->meta_semaphore);
+   
+    return 0;
 
 }
 
@@ -293,7 +295,7 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
 
     index = test_alloc(dev ,frame_qnt);
 
-  psivshmem_dprint(5,"psivshmem_alloc_memory: index= %d\n",index);
+	DPRINT(5,"psivshmem_alloc_memory: index= %ld\n",index);
 
     if(index == -1) return ptr;  // error! not enough memory
 
@@ -303,7 +305,7 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
 	SET_BIT(bitmap,n);  //ToDo: maybe possible: macro to set more bits "at once"
 	
    	 //printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);	
-  	 psivshmem_dprint(5,"psivshmem_alloc_memory:  <SET_BIT no %d>\n",n);
+  	 DPRINT(5,"psivshmem_alloc_memory:  <SET_BIT no %ld>\n",n);
 //
     }
     

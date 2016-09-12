@@ -40,6 +40,8 @@
 #define IVSHMEM_MSGTYPE_STD	 1
 #define IVSHMEM_MSGTYPE_DIRECT 2
 #define IVSHMEM_MSGTYPE_DIRECT_DONE 3
+#define IVSHMEM_DIFFERENT_HOSTS (-2) // added
+#define IVSHMEM_ERROR_MSG (-1) // added
 
 #define IVSHMEM_DATA(buf, len) ((char*)(&(buf)->header) - (((len) + 7) & ~7))
 
