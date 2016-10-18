@@ -46,6 +46,13 @@
 
 #define IB_MTU_PAYLOAD	(IB_MTU - sizeof(psib_msgheader_t))
 
+
+/*MTU on IVSHMEM */  // TEST   ############################################### 
+#define IVSHMEM_MTU_SPEC	MTU1024
+#define IVSHMEM_MTU		1024
+
+#define IVSHMEM_MTU_PAYLOAD (IVSHMEM_MTU - sizeof(psib_msgheader_t))
+
 #define ENABLE_SEND_NOTIFICATION 0
 
 typedef struct {

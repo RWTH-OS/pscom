@@ -83,7 +83,8 @@ typedef enum PSCOM_con_type {
 	PSCOM_CON_TYPE_VELO	= 0x0e,
 	PSCOM_CON_TYPE_CBC      = 0x0f,
 	PSCOM_CON_TYPE_MXM      = 0x10,
-	PSCOM_CON_TYPE_SUSPENDED= 0x11
+	PSCOM_CON_TYPE_SUSPENDED= 0x11,
+	PSCOM_CON_TYPE_IVSHMEM  = 0x12 	// mind the change! ;-)
 } pscom_con_type_t;
 
 
