@@ -263,7 +263,6 @@ void plugin_connect_next(pscom_con_t *con)
 	pscom_sock_t *sock = get_sock(con->pub.socket);
 	assert(pre->magic == MAGIC_PRECON);
 	assert(con->magic == MAGIC_CONNECTION);
-
 	do {
 		pre->plugin = pscom_plugin_next(pre->plugin);
 	} while (pre->plugin &&
