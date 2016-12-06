@@ -31,6 +31,9 @@
 #ifdef ENABLE_OPENIB
 #include "psport_openib.h"
 #endif
+#ifdef ENABLE_IVSHMEM
+#include "psport_ivshmem.h"
+#endif
 #ifdef ENABLE_GM
 #include "psport_gm.h"
 #endif
@@ -48,6 +51,7 @@
 #define PSP_ARCH_GM    6
 #define PSP_ARCH_MVAPI 7
 #define PSP_ARCH_OPENIB 8
+#define PSP_ARCH_IVSHMEM 9
 
 
 #define PSP_TERMINATE_REASON_REMOTECLOSE 0
@@ -85,6 +89,9 @@ struct PSP_Connection_s {
 #endif
 #ifdef ENABLE_OPENIB
 	psoib_info_t	openib;
+#endif
+#ifdef ENABLE_IVSHMEM
+//	psivshmem_info_t	ivshmem;
 #endif
 #ifdef ENABLE_GM
 	psgm_info_t	gm;
@@ -138,6 +145,13 @@ struct PSP_Port_s {
     int openib_users;
     struct list_head openib_list;
     struct list_head openib_list_send;
+#endif
+#ifdef ENABLE_IVSHMEM
+    /* IVSHMEM */
+
+    int ivshmem_users;
+    struct list_head ivshmem_list;
+    struct list_head ivshmem_list_send;
 #endif
 #ifdef ENABLE_GM
     /* GM */
@@ -219,6 +233,7 @@ extern int env_sharedmem;
 extern int env_p4sock;
 extern int env_mvapi;
 extern int env_openib;
+extern int env_ivshmem;
 extern int env_gm;
 extern int env_debug;
 

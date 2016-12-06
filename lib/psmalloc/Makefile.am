@@ -17,6 +17,7 @@ AM_CPPFLAGS += -DLIBDIR=\"$(libdir)\" -I$(top_srcdir)/lib/pscom
 
 lib_LTLIBRARIES = libpsmalloc.la
 
+
 libpsmalloc_la_SOURCES = psmalloc.c
 libpsmalloc_la_CPPFLAGS = $(AM_CPPFLAGS) $(PSM_CPPFLAGS)
 libpsmalloc_la_LDFLAGS = $(AM_LDFLAGS) $(PSM_LDFLAGS)

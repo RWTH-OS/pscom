@@ -117,7 +117,7 @@ void getenv_ulong(unsigned long *val, const char *name)
 void psshm_init()
 {
 	/* Hook into the malloc handler with __morecore... */
-
+//printf("HI :-)\n");
 	unsigned long enabled = 1;
 
 	/* Disabled by "PSP_MALLOC=0, PSP_SHAREDMEM=0 or PSP_SHM=0? */

@@ -49,6 +49,7 @@ LIST_HEAD(PSP_Ports);
 
 /* Set Debuglevel */
 #define ENV_DEBUG     "PSP_DEBUG"
+
 /* Socket options */
 #define ENV_SO_SNDBUF "PSP_SO_SNDBUF"
 #define ENV_SO_RCVBUF "PSP_SO_RCVBUF"
@@ -57,6 +58,7 @@ LIST_HEAD(PSP_Ports);
 #define ENV_P4SOCK "PSP_P4SOCK"
 #define ENV_MVAPI "PSP_MVAPI"
 #define ENV_OPENIB "PSP_OPENIB"
+#define ENV_IVSHMEM "PSP_IVSHMEM"
 #define ENV_GM "PSP_GM"
 
 /* Debugoutput on signal SIGQUIT (i386:3) (key: ^\) */
@@ -72,6 +74,7 @@ int env_sharedmem = 1;
 int env_p4sock = 1;
 int env_mvapi = 1;
 int env_openib = 1;
+int env_ivshmem = 1;
 int env_gm = 1;
 //static int env_nobgthread = 0;
 static int env_sigquit = 0;
@@ -128,7 +131,10 @@ PSP_Port_t *PSP_calloc_port(void)
     PSP_mvapi_init(port);
 #endif
 #ifdef ENABLE_OPENIB
-    PSP_openib_init(port);
+PSP_openib_init(port);
+#endif
+#ifdef ENABLE_IVSHMEM
+PSP_ivshmem_init(port);
 #endif
 #ifdef ENABLE_GM
     PSP_gm_init(port);
@@ -219,6 +225,7 @@ char *con_state(int state)
     case PSP_CON_STATE_OPEN_GM:		return "gm";
     case PSP_CON_STATE_OPEN_MVAPI:	return "mvapi";
     case PSP_CON_STATE_OPEN_OPENIB:	return "openib";
+    case PSP_CON_STATE_OPEN_IVSHMEM:	return "ivshmem";
     case PSP_CON_STATE_OPEN_P4S:	return "p4sock";
     case PSP_CON_STATE_OPEN_SHM:	return "shm";
     case PSP_CON_STATE_OPEN_TCP:	return "tcp";
@@ -879,6 +886,15 @@ void PSP_con_terminate(PSP_Port_t *port, PSP_Connection_t *con, int reason)
 	PSP_terminate_con_openib(port, con);
 	break;
 #endif
+
+#ifdef ENABLE_IVSHMEM
+    case PSP_CON_STATE_OPEN_IVSHMEM:
+	PSP_terminate_con_ivshmem(port, con);
+	break;
+#endif
+
+
+
     default:
 	DPRINT(0, "PSP_con_terminate() with state %s on con %d",
 	       con_state(con->state), con->con_idx);
@@ -1003,6 +1019,11 @@ int PSP_Connect_tcp(PSP_PortH_t porth, struct sockaddr *sa, socklen_t addrlen)
 #ifdef ENABLE_OPENIB
     initialized = initialized || PSP_connect_openib(port, con, con_fd);
 #endif
+
+#ifdef ENABLE_IVSHMEM
+    initialized = initialized || PSP_connect_ivshmem(port, con, con_fd);
+#endif
+
 #ifdef ENABLE_GM
     initialized = initialized || PSP_connect_gm(port, con, con_fd);
 #endif
@@ -1088,6 +1109,15 @@ void PSP_Accept(ufd_t *ufd, int ufd_idx)
 	    if (PSP_accept_openib(port, con, con_fd)) goto out;
 	    break;
 #endif
+
+#ifdef ENABLE_IVSHMEM
+	case PSP_ARCH_IVSHMEM:
+	    if (PSP_accept_ivshmem(port, con, con_fd)) goto out;
+	    break;
+#endif
+
+
+
 #ifdef ENABLE_GM
 	case PSP_ARCH_GM:
 	    if (PSP_accept_gm(port, con, con_fd)) goto out;
@@ -1154,6 +1184,11 @@ void init_env(void)
 #ifdef ENABLE_OPENIB
     intgetenv(&env_openib, ENV_OPENIB);
 #endif
+#ifdef ENABLE_IVSHMEM
+    intgetenv(&env_ivshmem, ENV_IVSHMEM);
+#endif
+
+
 #ifdef ENABLE_GM
     intgetenv(&env_gm, ENV_GM);
 #endif
@@ -1340,6 +1375,19 @@ int PSP_do_sendrecv(PSP_Port_t *port, int timeout)
 	timeout = 0;
     }
 #endif
+
+
+#ifdef ENABLE_IVSHMEM
+    if (!list_empty(&port->ivshmem_list)) {
+	if (PSP_do_sendrecv_ivshmem(port))
+	    return 1;
+	/* switch to polling mode */
+	timeout = 0;
+    }
+#endif
+
+
+
 #ifdef ENABLE_GM
     if (!list_empty(&port->gm_list)) {
 	if (PSP_do_sendrecv_gm(port))
@@ -1521,6 +1569,11 @@ char **PSP_HWList(void)
 #ifdef ENABLE_OPENIB
 	"openib",
 #endif
+
+#ifdef ENABLE_IVSHMEM
+	"ivshmem",
+#endif
+
 #ifdef ENABLE_GM
 	"gm",
 #endif

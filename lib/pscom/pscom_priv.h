@@ -30,6 +30,9 @@
 #include "pscom_env.h"
 #include "pscom_precon.h"
 
+
+#include "../pscom4ivshmem/pscom_ivshmem.h"
+
 #include "pscom_debug.h"
 
 
@@ -97,6 +100,13 @@ typedef struct psoib_conn {
 	struct psoib_con_info *mcon;
 } psoib_conn_t;
 
+
+/*old openib->ivshmem namespace translation*/
+/*
+typedef struct psivshmem_conn {
+	struct psivshmem_con_info *mcon;
+} psivshmem_conn_t;
+*/
 
 typedef struct psofed_conn {
 	struct psofed_con_info *mcon;
@@ -172,6 +182,14 @@ typedef struct pscom_rendezvous_msg {
 			int  padding_size;
 			char padding_data[64]; // >= IB_RNDV_PADDING_SIZE (see psoib.h)
 		} openib;
+		
+		struct {			// #### ADDED ####
+		} ivshmem;
+
+
+
+
+
 	}	arch;
 } pscom_rendezvous_msg_t;
 
@@ -194,6 +212,11 @@ typedef struct _pscom_rendezvous_data_extoll {
 } _pscom_rendezvous_data_extoll_t;
 
 
+typedef struct _pscom_rendezvous_data_ivshmem {
+	/* placeholder */
+	/* <=> shm */
+} _pscom_rendezvous_data_ivshmem_t;
+
 typedef struct _pscom_rendezvous_data_openib {
 	/* placeholder for struct pscom_rendezvous_data_openib */
 	char /* struct psiob_rma_req */ _rma_req[128]; /* ??? */
@@ -208,6 +231,7 @@ typedef struct pscom_rendezvous_data {
 		_pscom_rendezvous_data_dapl_t	dapl;
 		_pscom_rendezvous_data_extoll_t	extoll;
 		_pscom_rendezvous_data_openib_t openib;
+		_pscom_rendezvous_data_ivshmem_t ivshmem;
 	}		arch;
 } pscom_rendezvous_data_t;
 
@@ -310,6 +334,7 @@ struct PSCOM_con
 		p4s_conn_t	p4s;
 		psib_conn_t	mvapi;
 		psoib_conn_t	openib;
+		ivshmem_conn_t ivshmem;   /*#### ADDED ### */
 		psofed_conn_t	ofed;
 		psgm_conn_t	gm;
 		psdapl_conn_t	dapl;
@@ -368,6 +393,7 @@ struct PSCOM_sock
 	p4s_sock_t		p4s;
 //	psib_sock_t		mvapi;
 //	psoib_sock_t		openib;
+	ivshmem_sock_t	ivshmem;
 //	psofed_sock_t		ofed;
 	psgm_sock_t		gm;
 //	psdapl_sock_t		dapl;
@@ -437,6 +463,10 @@ struct PSCOM
 		unsigned int	shm_direct;	// successful shm direct sends
 		unsigned int	shm_direct_nonshmptr; // shm direct with copy because !is_psshm_ptr(data)
 		unsigned int	shm_direct_failed; // failed shm direct because !is_psshm_ptr(malloc(data))
+		
+		unsigned int	ivshmem_direct;	// successful ivshmem direct sends
+		unsigned int	ivshmem_direct_nonshmptr; // ivshmem direct with copy because !is_psshm_ptr(data)
+		unsigned int	ivshmem_direct_failed; // failed ivshmem direct because !is_psshm_ptr(malloc(data))
 	}			stat;
 };
 
@@ -464,6 +494,8 @@ extern pscom_t pscom;
 #define PSCOM_ARCH_CBC		116
 #define PSCOM_ARCH_MXM		117
 #define PSCOM_ARCH_UCP		118
+#define PSCOM_ARCH_IVSHMEM	119
+
 
 
 #define PSCOM_TCP_PRIO		2
@@ -479,6 +511,8 @@ extern pscom_t pscom;
 #define PSCOM_PSM_PRIO		30
 #define PSCOM_MXM_PRIO		30
 #define PSCOM_UCP_PRIO		30
+#define PSCOM_IVSHMEM_PRIO	80
+
 
 
 #define PSCOM_MSGTYPE_USER	0
@@ -644,3 +678,4 @@ void pscom_listener_resume(struct pscom_listener *listener);
 const char *pscom_con_str_reverse(pscom_connection_t *connection);
 
 #endif /* _PSCOM_PRIV_H_ */
+			

@@ -30,6 +30,13 @@ if GM_ENABLED
 endif
 endif
 
+if IVSHMEM_ENABLED
+  lib_LTLIBRARIES += libpsport4ivshmem.la
+if GM_ENABLED
+    lib_LTLIBRARIES += libpsport4all.la
+endif
+endif
+
 if GM_ENABLED
   lib_LTLIBRARIES += libpsport4gm.la
 if MELLANOX_ENABLED
@@ -93,6 +100,26 @@ if OPENIB_ENABLED
 	-DENABLE_OPENIB -I$(top_srcdir)/lib/pscom			\
 	-I$(top_srcdir)/lib/pscom/openib
   libpsport4all_la_LDFLAGS += $(OPENIB_LDFLAGS)
+  libpsport4all_la_LIBADD += -libverbs
+endif
+
+# -- ivshmem --
+
+libpsport4ivshmem_la_SOURCES = $(libpsport4_la_SOURCES)	\
+	ivshmem/psport_ivshmem.c ivshmem/psport_ivshmem.h
+libpsport4ivshmem_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/ivshmem\
+	$(IVSHMEM_CPPFLAGS) -DENABLE_IVSHMEM -I$(top_srcdir)/lib/pscom	\
+	-I$(top_srcdir)/lib/pscom/ivshmem
+libpsport4ivshmem_la_LDFLAGS = $(AM_LDFLAGS) $(IVSHMEM_LDFLAGS)
+libpsport4ivshmem_la_LIBADD = -libverbs
+
+if IVSHMEM_ENABLED
+  libpsport4all_la_SOURCES += ivshmem/psport_ivshmem.c	\
+	ivshmem/psport_ivshmem.h
+  libpsport4all_la_CPPFLAGS += -I$(srcdir)/ivshmem $(OPENIB_CPPFLAGS)	\
+	-DENABLE_IVSHMEM -I$(top_srcdir)/lib/pscom			\
+	-I$(top_srcdir)/lib/pscom/ivshmem
+  libpsport4all_la_LDFLAGS += $(IVSHMEM_LDFLAGS)
   libpsport4all_la_LIBADD += -libverbs
 endif
 
