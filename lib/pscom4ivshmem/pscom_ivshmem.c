@@ -103,13 +103,10 @@ int pscom_ivshmem_initsend(ivshmem_conn_t *ivshmem, void* rem_buf_offset)
 {
 	void *buf;
 
-//	printf("pscom_ivshmem_initsend says <Hello World>\n");
-//shm:	buf = shmat(rem_ivshmemid, 0, 0);i
 	buf = (void*)(ivshmem->device.iv_shm_base +(long)rem_buf_offset);  //mind: both have own virtual adress spaces ;-)
 	if (!buf) goto error;
 
 
-//	ivshmem->remote_id = rem_ivshmemid;
 	ivshmem->remote_com = buf;
 	ivshmem->send_cur = 0;
 
@@ -172,7 +169,6 @@ void pscom_ivshmem_recvstart_direct(ivshmem_conn_t *ivshmem, struct iovec iov[2]
 	unsigned len = ivshmembuf->header.len;
 	char *data = IVSHMEM_DATA(ivshmembuf, len);
 
-//printf("iov_base= Hello");
 	iov[0].iov_base = data;
 	iov[0].iov_len = len;
 
@@ -535,19 +531,7 @@ void ivshmem_cleanup_ivshmem_conn(ivshmem_conn_t *ivshmem)
 	ivshmem->local_com = NULL;
 	ivshmem->remote_com = NULL;
 	ivshmem->direct_base = NULL;
-//	ivshmem = NULL;
 
-//	memset(ivshmem, 0, sizeof(ivshmem));  // set memory to ZERO 
-/*
-	if (ivshmem->local_com) psivshmem_free_mem(&ivshmem->device, ivshmem->local_com, sizeof(ivshmem->local_com));
-	ivshmem->local_com = NULL;
-
-	if (ivshmem->remote_com) psivshmem_free_mem(&ivshmem->device, ivshmem->remote_com, sizeof(ivshmem->remote_com)); 
-	ivshmem->remote_com = NULL;
-
-	if (ivshmem->direct_base) shmdt(ivshmem->direct_base);  // <--- ToDO !!!!!!!!!!!!!!!
-	ivshmem->direct_base = NULL;
-*/
 
 }
 
@@ -633,90 +617,58 @@ void ivshmem_init_ivshmem_conn(ivshmem_conn_t *ivshmem)
 
 
 #define PSCOM_INFO_IVSHMEM_MSG1 PSCOM_INFO_ARCH_STEP1
-#define PSCOM_INFO_IVSHMEM_MSG2 PSCOM_INFO_ARCH_STEP2
 static
 void pscom_ivshmem_handshake(pscom_con_t *con, int type, void *data, unsigned size)
 {
 	precon_t *pre = con->precon;
 	ivshmem_conn_t *ivshmem = &con->arch.ivshmem;
-//	ivshmem_conn_t ivshmem;
 	int err = 0;
 	int host_err = 0;
 	switch (type) {
 	case PSCOM_INFO_ARCH_REQ: {
-	//	printf("Test...!\n");
-	//	ivshmem_conn_t ivshmem;
-		ivshmem_init_ivshmem_conn(ivshmem);  // +++++
-		//psivshmem_init_uio_device(&ivshmem.device); 
+		ivshmem_init_ivshmem_conn(ivshmem); 		
 		if (psivshmem_init_uio_device(&ivshmem->device)||pscom_ivshmem_initrecv(ivshmem)) goto error_initsend;
 		psivshmem_info_msg_t msg;
 		pscom_ivshmem_info_msg(ivshmem, &msg);
 		pscom_precon_send(pre, PSCOM_INFO_IVSHMEM_MSG1, &msg, sizeof(msg));
-		//memcpy(&con->arch.ivshmem, &ivshmem, sizeof(ivshmem)); // save handle!
 		break;
 	}
 	case PSCOM_INFO_IVSHMEM_MSG1: {
 		psivshmem_info_msg_t *msg = data;
 		assert(size == sizeof(*msg));
-//		ivshmem_conn_t ivshmem;
-//		if(psivshmem_init_uio_device(&ivshmem.device)) goto error_initdevice; 
-
 		host_err = (strcmp(msg->hostname, &ivshmem->device.metadata->hostname));
 		
 		if(!host_err){
 		    err =   pscom_ivshmem_initsend(ivshmem,(void*) msg->ivshmem_buf_offset); 
-		    pscom_ivshmem_init_direct(ivshmem, msg->direct_offset, msg->direct_base);  //  <--- ToDO!!   
+		    pscom_ivshmem_init_direct(ivshmem, msg->direct_offset, msg->direct_base); 
 		
 		}else {
-	 	    DPRINT(1,"Executed on different physical nodes, ivshmem not possible...\n");
-		   
-			if(con->pub.state == PSCOM_CON_STATE_CONNECTING || con->pub.state == PSCOM_CON_STATE_CONNECTING_ONDEMAND)
-			{goto error_initrecv;}else
-			{break;}
+		    if(con->pub.state == PSCOM_CON_STATE_CONNECTING || con->pub.state == PSCOM_CON_STATE_CONNECTING_ONDEMAND)
+			{
+			   DPRINT(1,"Executed on different physical nodes, ivshmem not possible...\n");
+			   goto error_initrecv;
+			}
+			else
+			{
+			   break;
+			}
 
 		}
-/*
-		if (err || host_err) {
-		    printf("Bulb...!\n");
-		    break;
-		    goto error_initrecv;
-		}
-		printf("BLaBLaBLa\n");
-		//pscom_precon_send(pre, PSCOM_INFO_ARCH_OK, NULL, 0);
-*/			
 		pscom_precon_send(pre, PSCOM_INFO_ARCH_OK, NULL, 0);
-//		psivshmem_info_msg_t msg2;
-//		pscom_ivshmem_info_msg(&ivshmem, &msg2);
-//		pscom_precon_send(pre, PSCOM_INFO_IVSHMEM_MSG2, &msg2, sizeof(msg2));
-//		memcpy(&con->arch.ivshmem, &ivshmem, sizeof(ivshmem)); // save handle!
 		break;
 
 	}
-/*	case PSCOM_INFO_IVSHMEM_MSG2: {
-		psivshmem_info_msg_t *msg = data;
-		assert(size == sizeof(*msg));
-    		   
-		    if(pscom_ivshmem_initsend(&con->arch.ivshmem, (void*) msg->ivshmem_buf_offset)) goto error_initsend;
-		    pscom_ivshmem_init_direct(&con->arch.ivshmem, msg->direct_offset, msg->direct_base);  //  <--- ToDO!!   
-
-		pscom_precon_send(pre, PSCOM_INFO_ARCH_OK, NULL, 0);	
-		break;
-
-	}
-*/
 	case PSCOM_INFO_ARCH_NEXT:
 		/* Cleanup ivshmem */
 		ivshmem_cleanup_ivshmem_conn(&con->arch.ivshmem);
 		break; /* Done (this connection attempt failed) */
 
 	case PSCOM_INFO_ARCH_OK:
-		//printf("info_ARCH_OK\n");
 		pscom_con_guard_start(con);
 		break; 
 
 	case PSCOM_INFO_EOF:
-		pscom_ivshmem_init_con(con);//, con_fd, ivshmem); //update function pointer -> 'now using ivshmem'!
-//		shm_init_con(con);
+		pscom_ivshmem_init_con(con);
 		break; /*Done - use this channel!*/
 	}
 
@@ -725,8 +677,6 @@ void pscom_ivshmem_handshake(pscom_con_t *con, int type, void *data, unsigned si
 error_initdevice:
 error_initrecv:
 error_initsend:
-	//shm_cleanup_shm_conn(shm);
-	printf("ERROR!!!!\n");
 	ivshmem_cleanup_ivshmem_conn(&con->arch.ivshmem);
 	pscom_precon_send_PSCOM_INFO_ARCH_NEXT(pre);
 }
@@ -742,6 +692,7 @@ pscom_plugin_t pscom_plugin = {
 	.version	= PSCOM_PLUGIN_VERSION,
 	.arch_id	= PSCOM_ARCH_IVSHMEM,
 	.priority	= PSCOM_IVSHMEM_PRIO,
+	.properties     = PSCOM_PLUGIN_PROP_EMPTY,
 	.init		= NULL,					//pscom_ivshmem_init,
 	.destroy	= NULL,
 	.sock_init	= pscom_ivshmem_sock_init, 	 	//NULL,
