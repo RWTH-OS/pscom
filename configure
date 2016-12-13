@@ -6650,7 +6650,6 @@ ia64-*-hpux*)
   rm -rf conftest*
   ;;
 
-<<<<<<< HEAD
 mips64*-*linux*)
   # Find out what ABI is being produced by ac_compile, and set linker
   # options accordingly.
@@ -6688,9 +6687,6 @@ mips64*-*linux*)
   ;;
 
 x86_64-*kfreebsd*-gnu|x86_64-*linux*|powerpc*-*linux*| \
-=======
-x86_64-*kfreebsd*-gnu|x86_64-*linux*|ppc*-*linux*|powerpc*-*linux*| \
->>>>>>> localivshmem
 s390*-*linux*|s390*-*tpf*|sparc*-*linux*)
   # Find out what ABI is being produced by ac_compile, and set linker
   # options accordingly.  Note that the listed cases only cover the
