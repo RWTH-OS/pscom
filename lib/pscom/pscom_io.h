@@ -93,21 +93,19 @@ void pscom_greq_check_free(pscom_con_t *con, pscom_req_t *greq);
    Do not use req, after a return of 1!  */
 int _pscom_update_recv_req(pscom_req_t *req);
 
-inline
 void pscom_post_send_direct(pscom_req_t *req, unsigned msg_type);
 
-inline
 pscom_req_t *_pscom_get_ctrl_receiver(pscom_con_t *con, pscom_header_net_t *nh);
 pscom_req_t *_pscom_get_bcast_receiver(pscom_con_t *con, pscom_header_net_t *nh);
 void pscom_req_prepare_recv(pscom_req_t *req, const pscom_header_net_t *nh,
 			    pscom_connection_t *connection);
 
-inline
 void pscom_req_prepare_send_pending(pscom_req_t *req,
 				    unsigned msg_type, unsigned data_pending);
 
 pscom_req_t *_pscom_generate_recv_req(pscom_con_t *con, pscom_header_net_t *nh);
 
+void _pscom_genreq_abort_rendezvous_rma_reads(pscom_con_t *con);
 
 /* post the receive request req.
    Receiving up to req->xheader_len bytes to req->xheader and

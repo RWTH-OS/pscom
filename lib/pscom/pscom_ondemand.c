@@ -11,6 +11,7 @@
  */
 
 #include "pscom_con.h"
+#include "pscom_migrate.h"
 #include "pscom_str_util.h"
 
 static
@@ -47,8 +48,8 @@ void pscom_ondemand_cleanup(pscom_con_t *con)
 	pscom_ondemand_read_stop(con);
 	pscom_listener_user_dec(&sock->listen);
 
-	con->pub.state = PSCOM_CON_STATE_CLOSED;
-	con->pub.type = PSCOM_CON_TYPE_NONE;
+	//con->pub.state = PSCOM_CON_STATE_CLOSED;
+	//con->pub.type = PSCOM_CON_TYPE_NONE;
 }
 
 
@@ -60,9 +61,6 @@ void pscom_ondemand_direct_connect(pscom_con_t *con)
 	int portno = con->arch.ondemand.portno;
 
 	pscom_ondemand_cleanup(con);
-
-	/* remove from list of available connections (&sock->connections) */
-	list_del(&con->next);
 
 	/* reopen via tcp connection */
 	int rc = pscom_con_connect_via_tcp(con, nodeid, portno);
@@ -77,17 +75,30 @@ void pscom_ondemand_direct_connect(pscom_con_t *con)
 static
 void pscom_ondemand_write_start(pscom_con_t *con)
 {
-	if (pscom_name_is_lower(con->arch.ondemand.name, con->pub.socket->local_con_info.name)) {
-		pscom_ondemand_read_start(con); // be prepared for the back connect
-		pscom_ondemand_indirect_connect(con);
+	if(!con->write_is_suspended) {
+		if (pscom_name_is_lower(con->arch.ondemand.name, con->pub.socket->local_con_info.name)) {
+
+			DPRINT(1, "TRY TO CONNECT: !IN!DIRECT %s | %d\n", 
+			       pscom_con_info_str(&con->pub.remote_con_info), 
+			       con->arch.ondemand.portno);
+
+			pscom_ondemand_read_start(con); // be prepared for the back connect
+			pscom_ondemand_indirect_connect(con);
+		} else {
+			pscom_sock_t *sock = get_sock(con->pub.socket);
+
+			DPRINT(1, "TRY TO CONNECT: DIRECT %s | %d\n",
+			       pscom_con_info_str(&con->pub.remote_con_info),
+			       con->arch.ondemand.portno);
+
+			pscom_listener_user_inc(&sock->listen); // listen until we have the connection
+
+			pscom_ondemand_direct_connect(con);
+
+			pscom_listener_user_dec(&sock->listen);
+		}
 	} else {
-		pscom_sock_t *sock = get_sock(con->pub.socket);
-
-		pscom_listener_user_inc(&sock->listen); // listen until we have the connection
-
-		pscom_ondemand_direct_connect(con);
-
-		pscom_listener_user_dec(&sock->listen);
+		con->write_is_signaled = 1;
 	}
 }
 
@@ -95,12 +106,16 @@ void pscom_ondemand_write_start(pscom_con_t *con)
 static
 void pscom_ondemand_read_start(pscom_con_t *con)
 {
-	if (!con->arch.ondemand.active) {
-		/* enable listen */
-		pscom_sock_t *sock = get_sock(con->pub.socket);
+	if(!con->read_is_suspended) {
+		if (!con->arch.ondemand.active) {
+			/* enable listen */
+			pscom_sock_t *sock = get_sock(con->pub.socket);
 
-		con->arch.ondemand.active = 1;
-		pscom_listener_active_inc(&sock->listen);
+			con->arch.ondemand.active = 1;
+			pscom_listener_active_inc(&sock->listen);
+		}
+	} else {
+		con->read_is_signaled = 1;
 	}
 }
 
@@ -148,16 +163,13 @@ pscom_con_t *pscom_ondemand_get_con(pscom_sock_t *sock, const char name[8])
 	pscom_con_t *con = pscom_ondemand_find_con(sock, name);
 	if (con) {
 		pscom_ondemand_cleanup(con);
-		/* remove from list of available connections (&sock->connections) */
-		list_del(&con->next);
 	}
 	return con;
 }
 
 
-static
-pscom_err_t pscom_con_connect_ondemand(pscom_con_t *con,
-				       int nodeid, int portno, const char name[8])
+pscom_err_t _pscom_con_connect_ondemand(pscom_con_t *con,
+					int nodeid, int portno, const char name[8])
 {
 	pscom_sock_t *sock = get_sock(con->pub.socket);
 	pscom_con_info_t con_info;
@@ -186,6 +198,7 @@ pscom_err_t pscom_con_connect_ondemand(pscom_con_t *con,
 	con->read_stop = pscom_ondemand_read_stop;
 	con->close = pscom_ondemand_close;
 
+	assert(list_empty(&con->next));
 	list_add_tail(&con->next, &sock->connections);
 
 	pscom_con_setup(con);
@@ -214,7 +227,7 @@ pscom_err_t pscom_connect_ondemand(pscom_connection_t *connection,
 	pscom_err_t rc;
 
 	pscom_lock(); {
-		rc = pscom_con_connect_ondemand(con, nodeid, portno, name);
+		rc = _pscom_con_connect_ondemand(con, nodeid, portno, name);
 	} pscom_unlock();
 
 	return rc;

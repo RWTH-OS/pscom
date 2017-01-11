@@ -21,7 +21,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <assert.h>
+#include <sched.h>
 #include <sys/resource.h> // getrlimit
+#include <syslog.h>
 
 /* #include <sysfs/libsysfs.h> */
 #include <infiniband/verbs.h>
@@ -48,10 +50,15 @@
 #define IB_MTU_PAYLOAD	(IB_MTU - sizeof(psoib_msgheader_t))
 #define IB_MAX_INLINE	64
 
+/* Try several times opening the device; for migration resume */
+#define IB_OPEN_DEV_MAX_TRY	10
+
 /* I got the error
    THH(4): THHUL_qpm_post_send_req: Send queue is full (128 requests outstanding).
    if SEND_NOTIFICATION is disabled */
 #define ENABLE_SEND_NOTIFICATION 1
+
+static int init_state = 1;
 
 typedef struct {
     mem_info_t	bufs;
@@ -287,6 +294,12 @@ void psoib_scan_hca_ports(struct ibv_device *ib_dev)
     ctx = ibv_open_device(ib_dev);
     if (!ctx) goto err_open_dev;
 
+    psoib_dprint(2, 
+           "%s %u: Opened the device (%p)", 
+           __FILE__, 
+           __LINE__,
+           ctx);
+
     rc = ibv_query_device(ctx, &device_attr);
     if (!rc) {
 	port_cnt = device_attr.phys_port_cnt;
@@ -414,13 +427,20 @@ struct ibv_device *psoib_get_dev_by_hca_name(const char *in_hca_name)
 static
 struct ibv_context *psoib_open_hca(char *hca_name)
 {
-    struct ibv_device *ib_dev;
-    struct ibv_context *ctx;
+    struct ibv_device *ib_dev = NULL;
+    struct ibv_context *ctx = NULL;
 
     ib_dev = psoib_get_dev_by_hca_name(hca_name);
     if (!ib_dev) goto err_no_hca;
 
-    ctx = ibv_open_device(ib_dev);
+    /* TODO: try to open the device serveral times */
+    unsigned int cnt = 0;
+    for (cnt=0; !ctx && (cnt < IB_OPEN_DEV_MAX_TRY); ++cnt) {
+	    ctx = ibv_open_device(ib_dev);
+	    usleep(50e3);
+    }
+
+    
     if (!ctx) goto err_open_device;
 
     return ctx;
@@ -446,6 +466,12 @@ struct ibv_cq *psoib_open_cq(struct ibv_context *ctx, int cqe_num)
 	psoib_err_errno("ibv_create_cq() failed", errno);
     }
 
+    psoib_dprint(2, 
+           "%s %u: Created a completion queue (%p)", 
+           __FILE__, 
+           __LINE__,
+           cq);
+
     return cq;
 }
 
@@ -468,10 +494,21 @@ struct ibv_pd *psoib_open_pd(struct ibv_context *ctx)
 static
 void psoib_vapi_free(hca_info_t *hca_info, mem_info_t *mem_info)
 {
-    ibv_dereg_mr(/*hca_info->ctx,*/ mem_info->mr);
-    mem_info->mr = NULL;
-    free(mem_info->ptr);
-    mem_info->ptr = NULL;
+	psoib_dprint(2, 
+	       "%s %u: Deregistering memory region ...", 
+	       __FILE__, 
+	       __LINE__);
+	if (ibv_dereg_mr(/*hca_info->ctx,*/ mem_info->mr) < 0) {
+		psoib_dprint(1, 
+		       "%s %u: ERROR: Could not deregister MR (%d [%s])!", 
+		       __FILE__, 
+		       __LINE__,
+		       errno, 
+		       strerror(errno));
+	}
+	mem_info->mr = NULL;
+	free(mem_info->ptr);
+	mem_info->ptr = NULL;
 }
 
 
@@ -540,7 +577,19 @@ void psoib_con_cleanup(psoib_con_info_t *con_info, hca_info_t *hca_info)
 	con_info->recv.bufs.mr = 0;
     }
     if (con_info->qp) {
-	ibv_destroy_qp(con_info->qp);
+	psoib_dprint(2, 
+	       "%s %u: Destroying queue pair (%p)...", 
+	       __FILE__, 
+	       __LINE__,
+	       con_info->qp);
+	if (ibv_destroy_qp(con_info->qp) < 0) {
+		psoib_dprint(1, 
+		       "%s %u: ERROR: Could not destroy QP (%d [%s])!", 
+		       __FILE__, 
+		       __LINE__,
+		       errno, 
+		       strerror(errno));
+	}
 	con_info->qp = 0;
     }
 }
@@ -656,6 +705,12 @@ int psoib_con_init(psoib_con_info_t *con_info, hca_info_t *hca_info, port_info_t
 
 	con_info->qp = ibv_create_qp(hca_info->pd, &attr);
 	if (!con_info->qp) goto err_create_qp;
+        
+	psoib_dprint(2, 
+               "%s %u: Created a queue pair (%p)", 
+               __FILE__, 
+               __LINE__,
+               con_info->qp);
     }
 
     {
@@ -736,11 +791,17 @@ int psoib_con_connect(psoib_con_info_t *con_info, psoib_info_msg_t *info_msg)
     con_info->n_tosend_toks = 0;
 
     if (move_to_rtr(con_info->qp, con_info->port_info->port_num,
-		    info_msg->lid, info_msg->qp_num))
+		    info_msg->lid, info_msg->qp_num)) {
+	    psoib_dprint(2, "%s %u: ERROR: Could not move qp to RTR. Abort!",
+			 __FILE__, __LINE__);
 	    goto err_move_to_rtr;
+    }
 
-    if (move_to_rts(con_info->qp))
+    if (move_to_rts(con_info->qp)) {
+	    psoib_dprint(2, "%s %u: ERROR: Could not move qp to RTS. Abort!",
+			 __FILE__, __LINE__);
 	    goto err_move_to_rts;
+    }
 
     // Initialize send tokens
     con_info->n_send_toks = psoib_recvq_size; // #tokens = length of _receive_ queue!
@@ -760,15 +821,50 @@ void psoib_cleanup_hca(hca_info_t *hca_info)
 	hca_info->send.bufs.mr = 0;
     }
     if (hca_info->pd) {
-	ibv_dealloc_pd(hca_info->pd);
+	psoib_dprint(2, 
+	       "%s %u: Deallocating protection domamin ...", 
+	       __FILE__, 
+	       __LINE__);
+	if (ibv_dealloc_pd(hca_info->pd) < 0) {
+		psoib_dprint(1, 
+		       "%s %u: ERROR: Could not deallocate PD (%d [%s])!", 
+		       __FILE__, 
+		       __LINE__,
+		       errno, 
+		       strerror(errno));
+	}
 	hca_info->pd = NULL;
     }
     if (hca_info->cq) {
-	ibv_destroy_cq(hca_info->cq);
+	psoib_dprint(2, 
+	       "%s %u: Destroying completion queue (%p)...", 
+	       __FILE__, 
+	       __LINE__,
+	       hca_info->cq);
+	if (ibv_destroy_cq(hca_info->cq) < 0) {
+		psoib_dprint(1, 
+		       "%s %u: ERROR: Could not destroy CQ (%d [%s])!", 
+		       __FILE__, 
+		       __LINE__,
+		       errno,
+		       strerror(errno));
+	}
 	hca_info->cq = NULL;
     }
     if (hca_info->ctx) {
-	ibv_close_device(hca_info->ctx);
+	psoib_dprint(2, 
+	       "%s %u: Closing device ... (%p)", 
+	       __FILE__, 
+	       __LINE__,
+	       hca_info->ctx);
+	if (ibv_close_device(hca_info->ctx) < 0) {
+		psoib_dprint(1, 
+		       "%s %u: ERROR: Could not close the device (%d [%s])!", 
+		       __FILE__, 
+		       __LINE__,
+		       errno, 
+		       strerror(errno));
+	}
 	hca_info->ctx = NULL;
     }
 
@@ -879,7 +975,6 @@ err_no_lid:
 
 int psoib_init(void)
 {
-    static int init_state = 1;
     if (init_state == 1) {
 	memset(&psoib_stat, 0, sizeof(psoib_stat));
 	psoib_scan_all_ports();
@@ -902,6 +997,27 @@ int psoib_init(void)
 
 static
 int psoib_poll(hca_info_t *hca_info, int blocking);
+
+int psoib_destroy(void)
+{
+    /* check if psoib is initialized */
+    if (init_state != 0) goto err_psoib_init;
+     
+    /* wait for outstanding cq elements */
+    psoib_poll(&default_hca, 1);
+
+    /* cleanup hca related resources */
+    psoib_cleanup_hca(&default_hca);
+
+    /* reset init state */
+    init_state = 1;
+
+    return 0;
+
+err_psoib_init:
+    psoib_dprint(1, "psoib does not seem to be initialized. Abort!");
+    return -1;
+}
 
 /* returnvalue like write(), except on error errno is negative return */
 
@@ -1030,13 +1146,6 @@ int _psoib_sendv(psoib_con_info_t *con_info, struct iovec *iov, int size, unsign
 int psoib_sendv(psoib_con_info_t *con_info, struct iovec *iov, int size)
 {
 	return _psoib_sendv(con_info, iov, size, PSOIB_MAGIC_IO);
-}
-
-
-void psoib_send_eof(psoib_con_info_t *con_info)
-{
-	_psoib_sendv(con_info, NULL, 0, PSOIB_MAGIC_EOF);
-	con_info->con_broken = 1; // Do not send more
 }
 
 
@@ -1242,6 +1351,8 @@ int psoib_check_cq(hca_info_t *hca_info)
 	    psoib_dprint(psoib_ignore_wrong_opcodes ? 1 : 0,
 			 "ibv_poll_cq(): Infiniband returned the wrong Opcode %d", wc.opcode);
 	    if (!psoib_ignore_wrong_opcodes) {
+		openlog(NULL, LOG_PID, LOG_USER);
+		syslog(LOG_ERR, "pscom4openib: ibv_poll_cq(): Infiniband returned the wrong Opcode %d", wc.opcode);
 		psoib_all_con_broken(hca_info);
 	    }
 	}
@@ -1258,6 +1369,13 @@ int psoib_poll(hca_info_t *hca_info, int blocking)
 	rc = psoib_check_cq(hca_info);
     } while (blocking && (rc != 0/*VAPI_CQ_EMPTY*/));
 
+/*
+    if (blocking) {
+    	printf("++++++++++++++++++++++++\n");
+    	printf("psoib_outstanding_cq_entries: %u\n", psoib_outstanding_cq_entries);
+    	printf("++++++++++++++++++++++++\n");
+    }
+*/
 //    if (psoib_debug &&
 //	(rc != VAPI_CQ_EMPTY) &&
 //	(rc != VAPI_OK)) {

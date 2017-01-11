@@ -211,6 +211,9 @@ pscom_err_t pscom_connect_socket_str(pscom_connection_t *connection, const char 
 	res = pscom_parse_socket_ondemand_str(socket_str, &nodeid, &portno, &name);
 	if (res) goto err_parse;
 
+	connection->nodeid = nodeid;
+	connection->portno = portno;
+
 	if (!name[0]) {
 		return pscom_connect(connection, nodeid, portno);
 	} else {
@@ -260,6 +263,15 @@ pscom_con_state_str(pscom_con_state_t state)
 	case PSCOM_CON_STATE_W:		return "wo";
 	case PSCOM_CON_STATE_RW:	return "open";
 	case PSCOM_CON_STATE_CLOSED:	return "closed";
+	case PSCOM_CON_STATE_CONNECTING:return "connecting";
+	case PSCOM_CON_STATE_ACCEPTING:	return "accepting";
+	case PSCOM_CON_STATE_CLOSING:	return "closing";
+	case PSCOM_CON_STATE_SUSPENDING:	return "suspending";
+	case PSCOM_CON_STATE_SUSPEND_SENT:	return "susp_sent";
+	case PSCOM_CON_STATE_SUSPEND_RECEIVED:	return "susp_recv";
+	case PSCOM_CON_STATE_SUSPENDED:		return "suspended";
+	case PSCOM_CON_STATE_CONNECTING_ONDEMAND:return "con_ondemand";
+	case PSCOM_CON_STATE_ACCEPTING_ONDEMAND:return "acc_ondemand";
 	}
 
 	{
@@ -291,6 +303,8 @@ pscom_con_type_str(pscom_con_type_t type)
 	case PSCOM_CON_TYPE_DAPL:	return "dapl";
 	case PSCOM_CON_TYPE_ONDEMAND:	return "demand";
 	case PSCOM_CON_TYPE_MXM:	return "mxm";
+	case PSCOM_CON_TYPE_UCP:	return "ucp";
+	case PSCOM_CON_TYPE_SUSPENDED:	return "susp";
 	case PSCOM_CON_TYPE_IVSHMEM:  	return "ivshmem";
 
 	}
@@ -408,6 +422,7 @@ pscom_err_str(pscom_err_t error)
 	case PSCOM_ERR_EOF:	return "End of file";
 	case PSCOM_ERR_IOERROR:	return "IO Error";
 	case PSCOM_ERR_UNSUPPORTED_VERSION: return "Unsupported version";
+	case PSCOM_ERR_CONNECTION_REFUSED: return "Connection refused";
 	case PSCOM_ERR_STDERROR:
 		return strerror(errno);
 	}
@@ -422,6 +437,8 @@ pscom_op_str(pscom_op_t operation)
 	switch (operation) {
 	case PSCOM_OP_READ: return "read";
 	case PSCOM_OP_WRITE: return "write";
+	case PSCOM_OP_CONNECT: return "connect";
+	case PSCOM_OP_RW: return "rw";
 	}
 
 	{

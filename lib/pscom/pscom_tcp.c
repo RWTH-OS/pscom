@@ -23,6 +23,9 @@
 #include "pscom_priv.h"
 #include "pscom_tcp.h"
 #include "pscom_ufd.h"
+#include "pscom_precon.h"
+#include "pscom_con.h"
+#include "pscom_migrate.h"
 #include <fcntl.h>
 
 
@@ -70,6 +73,7 @@ void _tcp_do_write(pscom_con_t *con)
 	req = pscom_write_get_iov(con, iov);
 
 	if (req) {
+		assert(req->magic == MAGIC_REQUEST);
 		ssize_t len;
 		// len = writev(con->arch.tcp.con_fd,
 		//		con->out.iov, con->out.count);
@@ -109,18 +113,44 @@ void tcp_write_start(pscom_con_t *con)
 {
 	D_TR(printf("%s:%u:%s() write start tcp\n", __FILE__, __LINE__, __func__));
 
-	ufd_event_set(&pscom.ufd, &con->arch.tcp.ufd_info, POLLOUT);
-	_tcp_do_write(con);
-	/* Dont do anything after this line.
-	   _tcp_do_write() can reenter tcp_set_write_start()! */
+	/* was there a state change request? */
+	if (pscom.env.suspend_resume &&
+	    pscom.migration_state == PSCOM_MIGRATION_REQUESTED) {
+		pscom_migration_handle_shutdown_req();
+
+	} else {
+		/* only send if con is not suspended */
+		if(!con->write_is_suspended) {
+			ufd_event_set(&pscom.ufd, &con->arch.tcp.ufd_info, POLLOUT);
+			_tcp_do_write(con);
+			/* Dont do anything after this line.
+			   _tcp_do_write() can reenter tcp_set_write_start()! */
+		}
+	}
+
+	/* ensure to write on resume of the connection */
+	con->write_is_signaled = 1;
 }
 
 
 static
 void tcp_read_start(pscom_con_t *con)
 {
-	D_TR(printf("%s:%u:%s() read start tcp\n", __FILE__, __LINE__, __func__));
-	ufd_event_set(&pscom.ufd, &con->arch.tcp.ufd_info, POLLIN);
+	/* was there a shutdown request? */
+	if (pscom.env.suspend_resume &&
+	    pscom.migration_state == PSCOM_MIGRATION_REQUESTED) {
+		pscom_migration_handle_shutdown_req();
+
+	} else {
+		/* only recv if con is not suspended */
+		if(!con->read_is_suspended) {
+			D_TR(printf("%s:%u:%s() read start tcp\n", __FILE__, __LINE__, __func__));
+			ufd_event_set(&pscom.ufd, &con->arch.tcp.ufd_info, POLLIN);
+		}
+	}
+	
+	/* ensure to recv on resume of the connection */
+	con->read_is_signaled = 1;
 }
 
 
@@ -145,11 +175,19 @@ void tcp_close(pscom_con_t *con)
 
 
 static
-void tcp_init_con(pscom_con_t *con, int con_fd)
+void tcp_set_fd(pscom_con_t *con, int con_fd)
+{
+	con->arch.tcp.ufd_info.fd = con_fd;
+}
+
+
+static
+void tcp_init_con(pscom_con_t *con)
 {
 	int ret;
+	int con_fd = con->arch.tcp.ufd_info.fd;
+	assert(con_fd >= 0);
 
-	con->pub.state = PSCOM_CON_STATE_RW;
 	con->pub.type = PSCOM_CON_TYPE_TCP;
 
 	con->write_start = tcp_write_start;
@@ -172,6 +210,8 @@ void tcp_init_con(pscom_con_t *con, int con_fd)
 	con->arch.tcp.ufd_info.priv = con;
 
 	ufd_add(&pscom.ufd, &con->arch.tcp.ufd_info);
+
+	pscom_con_setup_ok(con);
 }
 
 
@@ -183,32 +223,30 @@ void pscom_tcp_sock_init(pscom_sock_t *sock)
 
 
 static
-int pscom_tcp_connect(pscom_con_t *con, int con_fd)
+void pscom_tcp_handshake(pscom_con_t *con, int type, void *data, unsigned size)
 {
-	int arch = PSCOM_ARCH_TCP;
-	int ret;
-
-	pscom_writeall(con_fd, &arch, sizeof(arch));
-	ret = pscom_readall(con_fd, &arch, sizeof(arch));
-	if ((ret != sizeof(arch)) || arch != PSCOM_ARCH_TCP)
-		return 0;
-
-	tcp_init_con(con, con_fd);
-
-	return 1;
+	precon_t *pre = con->precon;
+	switch (type) {
+	case PSCOM_INFO_ARCH_REQ:
+		pre->closefd_on_cleanup = 0; // Keep fd after usage
+		pscom_precon_send(pre, PSCOM_INFO_ARCH_OK, NULL, 0);
+		break;
+	case PSCOM_INFO_ARCH_OK:
+		if (pre) {
+			tcp_set_fd(con, pre->ufd_info.fd);
+		}
+		break;
+	case PSCOM_INFO_EOF:
+		tcp_init_con(con);
+		break;
+	}
 }
 
 
 static
-int pscom_tcp_accept(pscom_con_t *con, int con_fd)
+int pscom_tcp_con_init(pscom_con_t *con)
 {
-	int arch = PSCOM_ARCH_TCP;
-
-	pscom_writeall(con_fd, &arch, sizeof(arch));
-
-	tcp_init_con(con, con_fd);
-
-	return 1;
+	return 0;
 }
 
 
@@ -217,11 +255,12 @@ pscom_plugin_t pscom_plugin_tcp = {
 	.version	= PSCOM_PLUGIN_VERSION,
 	.arch_id	= PSCOM_ARCH_TCP,
 	.priority	= PSCOM_TCP_PRIO,
+	.properties     = PSCOM_PLUGIN_PROP_NOT_MIGRATABLE,
 
 	.init		= NULL,
 	.destroy	= NULL,
 	.sock_init	= pscom_tcp_sock_init,
 	.sock_destroy	= NULL,
-	.con_connect	= pscom_tcp_connect,
-	.con_accept	= pscom_tcp_accept,
+	.con_init	= pscom_tcp_con_init,
+	.con_handshake	= pscom_tcp_handshake,
 };

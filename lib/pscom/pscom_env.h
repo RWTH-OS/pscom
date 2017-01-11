@@ -29,6 +29,7 @@
 #define ENV_SO_RCVBUF "PSP_SO_RCVBUF"
 #define ENV_TCP_NODELAY "PSP_TCP_NODELAY"
 #define ENV_TCP_BACKLOG "PSP_TCP_BACKLOG"
+#define ENV_TCP_ACCEPT_BACKLOG "PSP_TCP_ACCEPT_BACKLOG"
 
 /* Receive from a connection without receives posted? 0: No 1: Yes */
 #define ENV_UNEXPECTED_RECEIVES "PSP_UNEXPECTED_RECEIVES"
@@ -43,7 +44,12 @@
 #define ENV_RENDEZVOUS_ELAN "PSP_RENDEZVOUS_ELAN"
 #define ENV_RENDEZVOUS_EXTOLL "PSP_RENDEZVOUS_EXTOLL"
 #define ENV_RENDEZVOUS_VELO "PSP_RENDEZVOUS_VELO"
+/* Enable/Disable support for suspend/resume 0: Disable, 1: Enable */
+#define ENV_SUSPEND_RESUME "PSP_SUSPEND_RESUME"
+/* Postpone suspend/resume feedback 0: do not postpone, 1: postpone */
+#define ENV_POSTPONE_FEEDBACK "PSP_POSTPONE_FEEDBACK"
 #define ENV_RENDEZVOUS_OPENIB "PSP_RENDEZVOUS_OPENIB"
+#define ENV_RENDEZVOUS_UCP "PSP_RENDEZVOUS_UCP"
 
 /* Used in constructing the UUID for QLogic */
 #define ENV_PSM_UNIQ_ID "PSP_PSM_UNIQ_ID"
@@ -51,8 +57,13 @@
 
 /* Debugoutput on signal SIGQUIT (i386:3) (key: ^\) */
 #define ENV_SIGQUIT "PSP_SIGQUIT"
+/* signal number to listen on for connection suspend */
+#define ENV_SIGSUSPEND "PSP_SIGSUSPEND"
 #define ENV_READAHEAD "PSP_READAHEAD"
 #define ENV_RETRY "PSP_RETRY"
+
+/* Enable/Disable the connection guard */
+#define ENV_GUARD "PSP_GUARD"
 
 #define ENV_PLUGINDIR "PSP_PLUGINDIR"
 #define ENV_ARCH_PREFIX "PSP_"
@@ -89,24 +100,6 @@
 #define ENV_OPENIB_EVENT_CNT "PSP_OPENIB_EVENT_CNT" /* bool: Be busy if outstanding_cq_entries is to high? default: 1(yes) */
 #define ENV_OPENIB_IGNORE_WRONG_OPCODES "PSP_OPENIB_IGNORE_WRONG_OPCODES" /* bool: ignore wrong cq opcodes */
 #define ENV_OPENIB_LID_OFFSET "PSP_OPENIB_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
-
-
-//old ivshmem definitions (openib flavoured):
-/* IVSHMEM HCA and port */			// ############# ADDED ###########
-//#define ENV_IVSHMEM_HCA "PSP_IVSHMEM_HCA"   /* default: first hca */
-//#define ENV_IVSHMEM_PORT "PSP_IVSHMEM_PORT" /* default: port 1 */
-//#define ENV_IVSHMEM_PATH_MTU "PSP_IVSHMEM_PATH_MTU" /* default: 3
-//						     1 : IBV_MTU_256
-//						     2 : IBV_MTU_512
-//						     3 : IBV_MTU_1024 */
-//#define ENV_IVSHMEM_SENDQ_SIZE "PSP_IVSHMEM_SENDQ_SIZE"
-//#define ENV_IVSHMEM_RECVQ_SIZE "PSP_IVSHMEM_RECVQ_SIZE"
-//#define ENV_IVSHMEM_COMPQ_SIZE "PSP_IVSHMEM_COMPQ_SIZE"
-//#define ENV_IVSHMEM_PENDING_TOKENS "PSP_IVSHMEM_PENDING_TOKENS"
-//#define ENV_IVSHMEM_GLOBAL_SENDQ "PSP_IVSHMEM_GLOBAL_SENDQ" /* bool: Use one sendq for all connections? default: 0(no) */
-//#define ENV_IVSHMEM_EVENT_CNT "PSP_IVSHMEM_EVENT_CNT" /* bool: Be busy if outstanding_cq_entries is to high? default: 1(yes) */
-//#define ENV_IVSHMEM_IGNORE_WRONG_OPCODES "PSP_IVSHMEM_IGNORE_WRONG_OPCODES" /* bool: ignore wrong cq opcodes */
-//#define ENV_IVSHMEM_LID_OFFSET "PSP_IVSHMEM_LID_OFFSET" /* int: offset to base LID (adaptive routing) */
 
 
 /* OFED HCA and port */
@@ -152,6 +145,7 @@
 
 /* Use shm direct for messages >= PSP_SHM_DIRECT. Set PSP_SHM_DIRECT=-1 to disable shm direct. */
 #define ENV_SHM_DIRECT "PSP_SHM_DIRECT" /* min message size to use shm direct */
+#define ENV_SHM_INDIRECT "PSP_SHM_INDIRECT" /* min message size for indirect shm (when direct shm fails) */
 
 /* Use ivshmem direct for messages >= PSP_IVSHMEM_DIRECT. Set PSP_IVSHMEM_DIRECT=-1 to disable shm direct. */
 #define ENV_IVSHMEM_DIRECT "PSP_IVSHMEM_DIRECT" /* min message size to use ivshmem direct */
@@ -175,6 +169,7 @@ struct PSCOM_env {
 	unsigned int	so_rcvbuf;
 	int		tcp_nodelay;
 	unsigned int	tcp_backlog;
+	unsigned int	precon_reconnect_timeout;
 	int		unexpected_receives;
 	int		sched_yield;
 	unsigned int	rendezvous_size;
@@ -183,12 +178,17 @@ struct PSCOM_env {
 	unsigned int	rendezvous_size_elan;
 	unsigned int	rendezvous_size_extoll;
 	unsigned int	rendezvous_size_velo;
+	unsigned int	suspend_resume;
+	unsigned int	postpone_feedback;
 	unsigned int	rendezvous_size_openib;
+	unsigned int	rendezvous_size_ucp;
 	unsigned int   	rendezvous_size_ivshmem;
 	unsigned int	psm_uniq_id;
 	int		sigquit;
+	int		sigsuspend;
 	unsigned int	readahead;
 	unsigned int	retry;
+	unsigned int	guard;
 	unsigned int	skipblocksize;
 	unsigned int	iprobe_count;
 
@@ -207,6 +207,7 @@ struct PSCOM_env {
 	.so_rcvbuf = 32768,						\
 	.tcp_nodelay = 1,						\
 	.tcp_backlog = 262144 /*SOMAXCONN = 128 */,			\
+	.precon_reconnect_timeout = 2000, /* try reconnect in [ms] */	\
 									\
 	.unexpected_receives = 0,					\
 	.sched_yield = 0,						\
@@ -216,13 +217,18 @@ struct PSCOM_env {
 	.rendezvous_size_elan = ~0, /* default rendezvous_size for elan */ \
 	.rendezvous_size_extoll = ~0, /* default rendezvous_size for extoll */ \
 	.rendezvous_size_velo = 1024, /* default rendezvous_size for velo */ \
+	.suspend_resume = 0,						\
+	.postpone_feedback = 0,						\
 	.rendezvous_size_openib = 40000, /* default rendezvous_size for openib */ \
-	.rendezvous_size_ivshmem = 40000,	\
+	.rendezvous_size_ucp = ~0, /* default rendezvous_size for ucp */ \
+	.rendezvous_size_ivshmem = 40000,				\
 	.psm_uniq_id = 0,						\
 	.sigquit = 0,							\
+	.sigsuspend = 0,						\
 	.readahead = 100,						\
 	.skipblocksize = 8192,						\
-	.retry = 4,							\
+	.retry = 10,							\
+	.guard = 1,							\
 	.iprobe_count = 0,						\
 									\
 	.network = NULL,						\

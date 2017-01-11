@@ -51,6 +51,7 @@ unsigned int pscom_plugin_uprio(const char *arch)
 	res = 1;
 	if (strcmp(arch, "elan") == 0 ||
 	    strcmp(arch, "mxm") == 0 ||
+	    strcmp(arch, "ucp") == 0 ||
 	    strcmp(arch, "ofed") == 0) {
 		/* default of ELAN is 'off'. mpiexec will switch
 		   it on, after setting up the elan environment.*/
@@ -58,6 +59,9 @@ unsigned int pscom_plugin_uprio(const char *arch)
 		   elan plugin! And remove this if. */
 		/* default for MXM is 'off', but with a higher minor
 		   priority than OPENIB. With PSP_MXM=1 mxm will be used
+		   preferred. */
+		/* default for UCP is 'off', but with a higher minor
+		   priority than OPENIB. With PSP_UCP=1 ucp will be used
 		   preferred. */
 		/* default for ofed is 'off'. Until ofed support
 		   resends for lost messages. */
@@ -296,7 +300,8 @@ void pscom_plugins_init(void)
 		"velo",
 		"dapl",
 		"mxm",
-		"ivshmem",	// ##### ADDED ##### 
+		"ucp",
+		"ivshmem",
 		NULL };
 	char **tmp;
 
@@ -331,4 +336,21 @@ void pscom_plugins_sock_destroy(pscom_sock_t *sock)
 		pscom_plugin_t *p = list_entry(pos, pscom_plugin_t, next);
 		if (p->sock_destroy) p->sock_destroy(sock);
 	}
+}
+
+
+pscom_plugin_t *pscom_plugin_next(pscom_plugin_t *cur)
+{
+	if (!cur) return pscom_plugin_first();
+	if (&pscom_plugins == cur->next.next) return NULL;
+
+	return list_entry(cur->next.next, pscom_plugin_t, next);
+}
+
+
+pscom_plugin_t *pscom_plugin_first(void)
+{
+	if (list_empty(&pscom_plugins)) return NULL;
+
+	return list_entry(pscom_plugins.next, pscom_plugin_t, next);
 }

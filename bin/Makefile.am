@@ -17,7 +17,8 @@ SUBDIRS = simul_p4sock examples
 
 noinst_PROGRAMS = p4logd porttest psock_test pscom_test		\
 	   pscom_ondemand pscom_bcast_test pscom_request_create	\
-	   pscom_bcast_pp port_pp pscom_maxcon
+	   pscom_bcast_pp port_pp pscom_maxcon \
+	   pscom_test_fault
 
 check_PROGRAMS = list_test
 
@@ -47,12 +48,18 @@ if OPENIB_ENABLED
   noinst_PROGRAMS += openib_pp openib_ud_pp
 endif
 
+if UCP_ENABLED
+  noinst_PROGRAMS += ucp_pp
+endif
+
 if PSM_ENABLED
   noinst_PROGRAMS += psm_pp
 endif
 
+bin_PROGRAMS += test_nodes
+
 if PSMGMT_ENABLED
-  bin_PROGRAMS += test_nodes pscp
+  bin_PROGRAMS += pscp
 endif
 
 if DAPL_ENABLED
@@ -131,6 +138,9 @@ pscom_bcast_pp_LDADD = $(libpscom) -lpopt
 pscom_maxcon_SOURCES = pscom_maxcon.c
 pscom_maxcon_LDADD = $(libpscom)
 
+pscom_test_fault_SOURCES = pscom_test_fault.c
+pscom_test_fault_LDADD = $(libpscom) -lpopt
+
 # -- mellanox --
 
 libpsport4mvapi = $(top_builddir)/lib/psport4/libpsport4mvapi.la
@@ -187,6 +197,19 @@ openib_ud_pp_CPPFLAGS = $(cppflags_openib)
 openib_ud_pp_LDFLAGS = $(ldflags_openib) 
 openib_ud_pp_LDADD = $(ldadd_openib)
 
+# -- ucp --
+
+cppflags_ucp = $(AM_CPPFLAGS) $(UCP_CPPFLAGS)			\
+	-I$(top_srcdir)/lib/pscom 				\
+	-I$(top_srcdir)/lib/pscom4ucp
+ldflags_ucp = $(AM_LDFLAGS) $(UCP_LDFLAGS)
+ldadd_ucp = -lpopt -lucp
+
+ucp_pp_SOURCES = ucp/ucp_pp.c
+ucp_pp_CPPFLAGS = $(cppflags_ucp)
+ucp_pp_LDFLAGS = $(ldflags_ucp)
+ucp_pp_LDADD = $(ldadd_ucp)
+
 # -- psm --
 
 psm_pp_SOURCES = psm/psm_pp.c
@@ -197,9 +220,14 @@ psm_pp_LDADD = -lpsm_infinipath -lpopt
 # -- psmgmt --
 
 test_nodes_SOURCES = test_nodes.c
-test_nodes_CPPFLAGS = $(AM_CPPFLAGS) $(PSMGMT_CPPFLAGS)
+if PSMGMT_ENABLED
+test_nodes_CPPFLAGS = $(AM_CPPFLAGS) $(PSMGMT_CPPFLAGS) -DPSMGMT_ENABLED
 test_nodes_LDFLAGS = $(AM_LDFLAGS) $(PSMGMT_LDFLAGS)
 test_nodes_LDADD = $(libpscom) -lpse -lpsi  -lpopt
+else
+test_nodes_CPPFLAGS = $(AM_CPPFLAGS)
+test_nodes_LDADD = $(libpscom) -lpopt
+endif
 
 pscp_SOURCES = pscp.c  psport_util.c
 pscp_CPPFLAGS = $(AM_CPPFLAGS) $(PSMGMT_CPPFLAGS)
@@ -212,10 +240,11 @@ cppflags_dapl = $(AM_CPPFLAGS) $(DAPL_CPPFLAGS)			\
 	-I$(top_srcdir)/lib/pscom -I$(top_srcdir)/lib/pscom4dapl
 ldflags_dapl = $(AM_LDFLAGS) $(DAPL_LDFLAGS)
 
-dapl_pp_SOURCES = dapl/dapl_pp.c ../lib/pscom4dapl/psdapl.c
+dapl_pp_SOURCES = dapl/dapl_pp.c
 dapl_pp_CPPFLAGS = $(cppflags_dapl)
 dapl_pp_LDFLAGS = $(ldflags_dapl)
 dapl_pp_LDADD = $(top_builddir)/lib/pscom/libperf.la		\
+	$(top_builddir)/lib/pscom4dapl/libpsdapl.la 		\
 	-ldat -lpopt
 
 dapl_pp_lowlevel_SOURCES = dapl/dapl_pp_lowlevel.c
@@ -251,6 +280,7 @@ extoll_one_message_LDADD = -lrma2 -lpopt
 # -- mxm -- 
 
 mxm_pp_SOURCES = mxm/mxm_pp.c
+noinst_HEADERS += mxm/mxm_util.c
 mxm_pp_CPPFLAGS = $(AM_CPPFLAGS) $(MXM_CPPFLAGS)
 mxm_pp_LDFLAGS = $(AM_LDFLAGS) $(MXM_LDFLAGS)
 mxm_pp_LDADD = -lmxm -lpopt

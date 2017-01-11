@@ -39,7 +39,7 @@ typedef struct {
     struct ibv_mr *mr;
 } mem_info_t;
 
-#define IB_USE_RNDV
+#undef IB_USE_RNDV
 #define IB_RNDV_RDMA_WRITE
 #define IB_RNDV_THRESHOLD 4096
 #define IB_RNDV_USE_MREG_CACHE
@@ -104,6 +104,7 @@ void psoib_mregion_cache_init(void);
 
 
 int psoib_init(void);
+int psoib_destroy(void);
 
 
 // Connection handling:
@@ -127,7 +128,6 @@ void psoib_recvdone(psoib_con_info_t *con_info);
 /* It's important, that the sending side is aligned to IB_MTU_SPEC,
    else we loose a lot of performance!!! */
 int psoib_sendv(psoib_con_info_t *con_info, struct iovec *iov, int size);
-void psoib_send_eof(psoib_con_info_t *con_info);
 
 /* Handle outstanding cq events. */
 void psoib_progress(void);

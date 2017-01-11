@@ -23,6 +23,8 @@
 #include <assert.h>
 #include <popt.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <sched.h>
 
 #include "pscom.h"
 
@@ -31,7 +33,7 @@ const char *arg_server = "localhost:7100";
 int arg_client = 0;
 int arg_lport = 7100;
 
-int arg_loops = 1024;
+int arg_loops = 1024*1024;
 int arg_maxtime = 3000;
 #define MAX_XHEADER 100
 int arg_xheader = 12;
@@ -138,6 +140,11 @@ unsigned long getusec(void)
 	return (tv.tv_usec+tv.tv_sec*1000000);
 }
 
+static pscom_connection_t *connection_to_be_resumed = NULL;
+void alarm_handler(int signum){
+	printf("### CALLING RESUME... ###\n");
+	pscom_resume_connection(connection_to_be_resumed);
+}
 
 static
 void run_pp_server(pscom_connection_t *con)
@@ -173,8 +180,19 @@ void run_pp_server(pscom_connection_t *con)
 			       pscom_dumpstr(req->data, req->header.data_len));
 		}
 
+		sched_yield();
+
 		req->xheader_len = req->header.xheader_len;
 		req->data_len = req->header.data_len;
+
+#if 0
+		if(req->data_len == 724) {
+			connection_to_be_resumed = con;
+			signal(SIGALRM, alarm_handler);
+			alarm(2);
+		}
+#endif
+
 		pscom_post_send(req);
 
 		pscom_wait(req);
@@ -215,6 +233,7 @@ int pp_loop_verify(pscom_request_t *sreq, pscom_request_t *rreq, unsigned loops)
 
 		// printf("SEND %d data :%s\n", msize,
 		//       pscom_dumpstr(sbuf, MIN(msize, 16)));
+		sched_yield();
 		pscom_post_recv(rreq);
 
 		pscom_wait(sreq);
@@ -326,6 +345,15 @@ void do_pp_client(pscom_connection_t *con)
 		/* warmup, for sync */
 		run_pp_c(con, 2, 2, 2, pp_loop);
 
+#if 0
+		if(msgsize == 1024) {
+			printf("### CALLING SHUTDOWN... ###\n");
+			pscom_shutdown_connection(con);
+			connection_to_be_resumed = con;
+			signal(SIGALRM, alarm_handler);
+			alarm(2);
+		}
+#endif
 		if (arg_verify) {
 			pp_loop_func = pp_loop_verify;
 		} else if (arg_histo) {
@@ -348,6 +376,7 @@ void do_pp_client(pscom_connection_t *con)
 			printf("%7d Error in communication...\n", msgsize);
 		}
 
+		if(0)
 		{
 			double t = (t2 - t1) / 1000;
 			while (t > arg_maxtime) {
@@ -356,6 +385,8 @@ void do_pp_client(pscom_connection_t *con)
 			}
 			if (loops < 1) loops = 1;
 		}
+
+		if((int)(ms + 0.5) >= arg_maxmsize) ms = 1.4142135;
 	}
 
 	return;
@@ -424,6 +455,7 @@ int main(int argc, char **argv)
 		PSCALL(pscom_connect_socket_str(con, arg_server));
 
 		do_pp_client(con);
+		pscom_close_connection(con);
 		if (arg_verbose) pscom_dump_info(stdout);
 	}
 

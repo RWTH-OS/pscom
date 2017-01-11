@@ -74,6 +74,47 @@ void _pscom_sendq_deq(pscom_con_t *con, pscom_req_t *req)
 	}
 }
 
+void _pscom_sendq_steal(pscom_con_t *con, pscom_req_t *req)
+{
+	list_del(&req->next); // dequeue
+}
+
+
+/*************
+ * Pending io queue
+ */
+
+void _pscom_pendingio_enq(pscom_con_t *con, pscom_req_t *req)
+{
+	pscom_sock_t *sock = get_sock(con->pub.socket);
+	list_add_tail(&req->next, &sock->pendingioq);
+}
+
+
+void _pscom_pendingio_deq(pscom_con_t *con, pscom_req_t *req)
+{
+	pscom_sock_t *sock = get_sock(con->pub.socket);
+	list_del(&req->next); // dequeue
+}
+
+
+/*************
+ * Sendq for suspending connections
+ */
+
+void _pscom_sendq_suspending_enq(pscom_con_t *con, pscom_req_t *req)
+{
+	pscom_sock_t *sock = get_sock(con->pub.socket);
+	list_add_tail(&req->next, &sock->sendq_suspending);
+}
+
+
+void _pscom_sendq_suspending_deq(pscom_con_t *con, pscom_req_t *req)
+{
+	pscom_sock_t *sock = get_sock(con->pub.socket);
+	list_del(&req->next); // dequeue
+}
+
 
 /*************
  * Receive requests
@@ -479,6 +520,19 @@ void _pscom_recvq_rma_deq(pscom_con_t *con, pscom_req_t *req)
 {
 	list_del(&req->next);
 	_pscom_recv_req_cnt_dec(con);
+}
+
+
+int _pscom_recvq_rma_contains(pscom_con_t *con, pscom_req_t *req_needle)
+{
+	struct list_head *pos;
+	list_for_each(pos, &con->recvq_rma) {
+		pscom_req_t *req = list_entry(pos, pscom_req_t, next);
+		if (req == req_needle) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 

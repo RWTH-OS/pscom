@@ -57,6 +57,7 @@ bin/pscom_ondemand.c \
 bin/pscom_pp.c \
 bin/pscom_request_create.c \
 bin/pscom_test.c \
+bin/pscom_test_fault.c \
 bin/pscp.c \
 bin/psm/psm_pp.c \
 bin/psock_pp.c \
@@ -71,6 +72,7 @@ bin/simul_p4sock/list.h \
 bin/simul_p4sock/simul.c \
 bin/simul_p4sock/simul.gnu.sh \
 bin/test_nodes.c \
+bin/ucp/ucp_pp.c \
 common.am \
 configure \
 configure.ac \
@@ -81,6 +83,7 @@ dist/pscom.spec.templ \
 doc/Makefile.am \
 doc/Makefile.in \
 doc/README_any_source_receives.txt \
+doc/Verbindungsaufbau.txt \
 doc/bcast.txt \
 doc/p4stat.txt \
 doc/p4tcp.txt \
@@ -112,6 +115,8 @@ lib/pscom/perf.c \
 lib/pscom/perf.h \
 lib/pscom/perf.sh \
 lib/pscom/pscom.c \
+lib/pscom/pscom_async.c \
+lib/pscom/pscom_async.h \
 lib/pscom/pscom_con.c \
 lib/pscom/pscom_con.h \
 lib/pscom/pscom_debug.c \
@@ -126,11 +131,15 @@ lib/pscom/pscom_group_bcast.c \
 lib/pscom/pscom_io.c \
 lib/pscom/pscom_io.h \
 lib/pscom/pscom_listener.c \
+lib/pscom/pscom_migrate.c \
+lib/pscom/pscom_migrate.h \
 lib/pscom/pscom_ondemand.c \
 lib/pscom/pscom_p4s.c \
 lib/pscom/pscom_p4s.h \
 lib/pscom/pscom_plugin.c \
 lib/pscom/pscom_plugin.h \
+lib/pscom/pscom_precon.c \
+lib/pscom/pscom_precon.h \
 lib/pscom/pscom_priv.h \
 lib/pscom/pscom_queues.c \
 lib/pscom/pscom_queues.h \
@@ -142,6 +151,7 @@ lib/pscom/pscom_sock.c \
 lib/pscom/pscom_sock.h \
 lib/pscom/pscom_str_util.c \
 lib/pscom/pscom_str_util.h \
+lib/pscom/pscom_suspend.c \
 lib/pscom/pscom_tcp.c \
 lib/pscom/pscom_tcp.h \
 lib/pscom/pscom_types.h \
@@ -199,6 +209,12 @@ lib/pscom4psm/Makefile.am \
 lib/pscom4psm/Makefile.in \
 lib/pscom4psm/pscom_psm.c \
 lib/pscom4psm/pscom_psm.h \
+lib/pscom4ucp/Makefile.am \
+lib/pscom4ucp/Makefile.in \
+lib/pscom4ucp/pscom_ucp.c \
+lib/pscom4ucp/pscom_ucp.h \
+lib/pscom4ucp/psucp.c \
+lib/pscom4ucp/psucp.h \
 lib/pscom4velo/Makefile.am \
 lib/pscom4velo/Makefile.in \
 lib/pscom4velo/pscom_extoll.c \
@@ -246,6 +262,8 @@ m4/ltoptions.m4 \
 m4/ltsugar.m4 \
 m4/ltversion.m4 \
 m4/lt~obsolete.m4 \
+pscom_bin_examples_mqtt_makefile \
+pscom_bin_mqtt_makefile \
 scripts/Makefile.am \
 scripts/Makefile.in \
 scripts/alldeps \
@@ -263,5 +281,6 @@ scripts/ps_p4sock.sh \
 scripts/rpm_noreq \
 scripts/tcpdump.awk \
 scripts/tcpdumpp4 \
+scripts/test-driver \
 scripts/txt2man \
 scripts/vcversion

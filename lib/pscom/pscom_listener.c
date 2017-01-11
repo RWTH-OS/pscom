@@ -60,6 +60,7 @@ void pscom_listener_user_dec(struct pscom_listener *listener)
 
 		int fd = pscom_listener_get_fd(listener);
 		if (fd >= 0) {
+			printf("======================== CLOSE =========================\n");
 			close(fd);
 		} else {
 			DPRINT(1, "warning: %s() fd already closed", __func__);
@@ -78,8 +79,10 @@ void pscom_listener_active_inc(struct pscom_listener *listener)
 	if (start) {
 		pscom_listener_user_inc(listener);
 
-		ufd_add(&pscom.ufd, &listener->ufd_info);
-		ufd_event_set(&pscom.ufd, &listener->ufd_info, POLLIN);
+		if(!listener->is_suspended) {
+			ufd_add(&pscom.ufd, &listener->ufd_info);
+			ufd_event_set(&pscom.ufd, &listener->ufd_info, POLLIN);
+		}
 	}
 }
 
@@ -89,8 +92,32 @@ void pscom_listener_active_dec(struct pscom_listener *listener)
 	listener->activecnt--;
 
 	if (!listener->activecnt) {
-		ufd_del(&pscom.ufd, &listener->ufd_info);
+
+		if(!listener->is_suspended) {
+			ufd_del(&pscom.ufd, &listener->ufd_info);
+		}
 
 		pscom_listener_user_dec(listener);
+	}
+}
+
+void pscom_listener_suspend(struct pscom_listener *listener)
+{
+	assert(!listener->is_suspended);
+	listener->is_suspended = 1;
+
+	if(listener->activecnt) {
+		ufd_del(&pscom.ufd, &listener->ufd_info);
+	}
+}
+
+void pscom_listener_resume(struct pscom_listener *listener)
+{
+	assert(listener->is_suspended);
+	listener->is_suspended = 0;
+
+	if(listener->activecnt) {
+		ufd_add(&pscom.ufd, &listener->ufd_info);
+		ufd_event_set(&pscom.ufd, &listener->ufd_info, POLLIN);
 	}
 }

@@ -124,13 +124,13 @@ int psivshmem_init_uio_device(ivshmem_pci_dev_t *dev) // init the device
 
 	if(dev->metadata->magic != META_MAGIC) goto not_initialised; 
 	
-    
-/*     	printf("Device_infos:\n");
+   /* 
+     	printf("Device_infos:\n");
      	printf("Devicename \t= %s\n" ,dev->name); 
      	printf("Map_Size \t= %.2f MiB\n" , dev->map1_size_MiB); 
-   
+	printf("iv_shm_base = %p\n", dev->iv_shm_base);   
+	printf("Offset Address= %p\n", &dev->metadata->bitmapOffset);
 */
-
 	
      	close(dev_fd); //keep dev_fd alive? --> no, mmap() saves required data internally, c.f.man pages
 	free(namelist);
@@ -284,6 +284,7 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
    long index;
    long frame_qnt = 0;
    void *ptr = NULL;
+   
    unsigned *bitmap = (unsigned int*) (dev->iv_shm_base + (long) dev->metadata->bitmapOffset);
 
 
@@ -306,7 +307,7 @@ void *psivshmem_alloc_mem(ivshmem_pci_dev_t *dev, size_t sizeByte)
 	
    	 //printf("psivshmem_alloc_memory says <SET_BIT no %d>\n",n);	
   	 DPRINT(5,"psivshmem_alloc_memory:  <SET_BIT no %ld>\n",n);
-//
+
     }
     
     sem_post(&dev->metadata->meta_semaphore);
