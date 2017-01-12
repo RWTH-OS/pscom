@@ -45,6 +45,8 @@
 
 #define IVSHMEM_DATA(buf, len) ((char*)(&(buf)->header) - (((len) + 7) & ~7))
 
+static int ivshmem_init_state = 1;
+
 typedef struct ivshmem_msg_s {
         uint32_t len;
         volatile uint32_t msg_type;

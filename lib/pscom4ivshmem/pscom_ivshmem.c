@@ -677,13 +677,29 @@ void pscom_ivshmem_handshake(pscom_con_t *con, int type, void *data, unsigned si
 error_initdevice:
 error_initrecv:
 error_initsend:
+//	pscom_ivshmem_disable();
 	ivshmem_cleanup_ivshmem_conn(&con->arch.ivshmem);
 	pscom_precon_send_PSCOM_INFO_ARCH_NEXT(pre);
 }
 
+void pscom_ivshmem_disable()
+{
+ ivshmem_init_state = -1;
+}
+
 int iv_test_init(pscom_con_t *con)
 {
-return 0;
+        	
+	if (ivshmem_init_state == 1) {
+	    /* do initialization */
+	    /* currently not required */
+
+    	ivshmem_init_state = 0;
+    
+     	}
+
+    	return ivshmem_init_state;  /* 0 = success, -1 = error/disabled  */ 
+
 }
 
 
