@@ -1,0 +1,5 @@
+<shmem name='ivshmem0'>
+    <model type='ivshmem-plain'/>
+    <size unit='M'>512</size>
+    <alias name='ivshmem0'/>
+</shmem>
