@@ -301,6 +301,7 @@ void pscom_plugins_init(void)
 		"dapl",
 		"mxm",
 		"ucp",
+		"ivshmem", 
 		NULL };
 	char **tmp;
 

@@ -67,6 +67,9 @@ pscom_t pscom = {
 		.shm_direct = 0,
 		.shm_direct_nonshmptr = 0,
 		.shm_direct_failed = 0,
+		.ivshmem_direct = 0,
+		.ivshmem_direct_nonshmptr = 0,
+		.ivshmem_direct_failed = 0,
 	},
 };
 

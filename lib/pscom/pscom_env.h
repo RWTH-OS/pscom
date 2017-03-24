@@ -72,6 +72,10 @@
 #define ENV_ARCH_OLD_SHM "PSP_SHAREDMEM"
 #define ENV_ARCH_NEW_SHM ENV_ARCH_PREFIX "SHM"
 
+/* Use this, if ENV_ARCH_NEW_IVSHMEM is not set */
+#define ENV_ARCH_OLD_IVSHMEM "PSP_IVSHMEM"
+#define ENV_ARCH_NEW_IVSHMEM ENV_ARCH_PREFIX "IVSHMEM"
+
 /* Use this, if ENV_ARCH_NEW_P4S is not set */
 #define ENV_ARCH_OLD_P4S "PSP_P4SOCK"
 #define ENV_ARCH_NEW_P4S ENV_ARCH_PREFIX "P4S"
@@ -131,9 +135,15 @@
 #define ENV_MALLOC_MIN "PSP_MALLOC_MIN" /* ulong: minimum size of the shared mem segment */
 #define ENV_MALLOC_MAX "PSP_MALLOC_MAX" /* ulong: maximum size of the shared mem segment */
 
+#define ENV_IVSHMEM_MALLOC "PSP_IVSHMEM_MALLOC" /* bool: Use a hook into glibc malloc (__morecore())? default: 1(yes) */
+#define ENV_IVSHMEM_MALLOC_MIN "PSP_IVSHMEM_MALLOC_MIN" /* ulong: minimum size of the shared mem segment */
+#define ENV_IVSHMEM_MALLOC_MAX "PSP_IVSHMEM_MALLOC_MAX" /* ulong: maximum size of the shared mem segment */
+
 /* Use shm direct for messages >= PSP_SHM_DIRECT. Set PSP_SHM_DIRECT=-1 to disable shm direct. */
 #define ENV_SHM_DIRECT "PSP_SHM_DIRECT" /* min message size to use shm direct */
 #define ENV_SHM_INDIRECT "PSP_SHM_INDIRECT" /* min message size for indirect shm (when direct shm fails) */
+
+#define ENV_IVSHMEM_DIRECT "PSP_IVSHMEM_DIRECT" /* min message size to use ivshmem direct */ 
 
 /* Manage a list of all requests for debug dumps (decrease performance!) */
 #define ENV_DEBUG_REQ     "PSP_DEBUG_REQ"
@@ -167,6 +177,7 @@ struct PSCOM_env {
 	unsigned int	postpone_feedback;
 	unsigned int	rendezvous_size_openib;
 	unsigned int	rendezvous_size_ucp;
+	unsigned int   	rendezvous_size_ivshmem; 
 	unsigned int	psm_uniq_id;
 	int		sigquit;
 	int		sigsuspend;
@@ -204,6 +215,7 @@ struct PSCOM_env {
 	.suspend_resume = 0,						\
 	.postpone_feedback = 0,						\
 	.rendezvous_size_openib = 40000, /* default rendezvous_size for openib */ \
+	.rendezvous_size_ivshmem = 40000,				\ 
 	.rendezvous_size_ucp = ~0, /* default rendezvous_size for ucp */ \
 	.psm_uniq_id = 0,						\
 	.sigquit = 0,							\

@@ -48,9 +48,9 @@ script:
     - make
     - make install
 
-notifications:
-  recipients:
-    - spickartz@eonerc.rwth-aachen.de
-  email:
-    on_success: change
-    on_failure: always
+#notifications:
+#  recipients:
+#    test@test.de
+#  email:
+#    on_success: change
+#    on_failure: always

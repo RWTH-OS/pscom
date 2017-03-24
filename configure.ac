@@ -101,6 +101,17 @@ AS_IF([test "x$have_openib" = xno -a "x$enable_openib" = xyes],
 AM_CONDITIONAL([OPENIB_ENABLED],
 	       [test "x$enable_openib" != xno -a "x$have_openib" = xyes])
 
+# -- IVSHmem --
+
+AC_ARG_ENABLE([ivshmem],[AS_HELP_STRING([--disable-ivshmem],
+	      [disable inter-VM shared memory support])])
+AS_IF([test "x$enable_ivshmem" != xno],
+      [AX_CHECK_LIBRARY([IVSHMEM], [pthread.h], [pthread],
+      [have_ivshmem=yes], [have_ivshmem=no])])
+AS_IF([test "x$have_ivshmem" = xno -a "x$enable_ivshmem" = xyes],
+      [AC_MSG_ERROR([ivshmem support requested but not found])])
+AM_CONDITIONAL([IVSHMEM_ENABLED],
+	       [test "x$enable_ivshmem" != xno -a "x$have_ivshmem" = xyes])
 # -- OFED --
 
 AC_ARG_ENABLE([ofed],[AS_HELP_STRING([--disable-ofed],
@@ -205,6 +216,7 @@ AC_CONFIG_FILES(lib/pscom4gm/Makefile)
 AC_CONFIG_FILES(lib/pscom4ofed/Makefile)
 AC_CONFIG_FILES(lib/pscom4ucp/Makefile)
 AC_CONFIG_FILES(lib/pscom4openib/Makefile)
+AC_CONFIG_FILES(lib/pscom4ivshmem/Makefile)  #Added for ivshmem plugin
 AC_CONFIG_FILES(lib/pscom4psm/Makefile)
 AC_CONFIG_FILES(lib/psmalloc/Makefile)
 AC_CONFIG_FILES(lib/psport4/Makefile)
@@ -230,6 +242,9 @@ AM_COND_IF([MELLANOX_ENABLED],
 AM_COND_IF([OPENIB_ENABLED],
   [AC_MSG_NOTICE([OPENIB_ENABLED:   yes])],
   [AC_MSG_NOTICE([OPENIB_ENABLED:   no])])
+AM_COND_IF([IVSHMEM_ENABLED],
+  [AC_MSG_NOTICE([IVSHMEM_ENABLED:   yes])],
+  [AC_MSG_NOTICE([IVSHMEM_ENABLED:   no])])
 AM_COND_IF([OFED_ENABLED],
   [AC_MSG_NOTICE([OFED_ENABLED:     yes])],
   [AC_MSG_NOTICE([OFED_ENABLED:     no])])

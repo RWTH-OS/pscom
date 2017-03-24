@@ -225,6 +225,9 @@ lib/pscom4velo/psextoll_mregion_cache.c \
 lib/psmalloc/Makefile.am \
 lib/psmalloc/Makefile.in \
 lib/psmalloc/psmalloc.c \
+lib/psmalloc_ivshmem/Makefile.am \
+lib/psmalloc_ivshmem/Makefile.in \
+lib/psmalloc_ivshmem/psmalloc_interVM.c \
 lib/psport4/Makefile.am \
 lib/psport4/Makefile.in \
 lib/psport4/getid.c \

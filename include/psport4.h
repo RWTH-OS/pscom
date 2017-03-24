@@ -601,6 +601,7 @@ PSP_Status_t PSP_Cancel(PSP_PortH_t porth, PSP_RequestH_t request);
 #define PSP_CON_STATE_OPEN_GM	6
 #define PSP_CON_STATE_OPEN_MVAPI 7
 #define PSP_CON_STATE_OPEN_OPENIB 8
+#define PSP_CON_STATE_OPEN_IVSHMEM 9 
 
 struct PSP_ConInfo_s {
     int node_id;
