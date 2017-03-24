@@ -17,6 +17,7 @@ ACLOCAL_AMFLAGS = -I m4
 SUBDIRS =
 SUBDIRS += pscom
 SUBDIRS += psmalloc
+SUBDIRS += psmalloc4ivshmem
 
 # - dapl -
 if DAPL_ENABLED
@@ -57,6 +58,11 @@ endif
 # -- openib --
 if OPENIB_ENABLED
     SUBDIRS += pscom4openib
+endif
+
+# -- ivshmem --
+if IVSHMEM_ENABLED   
+    SUBDIRS += pscom4ivshmem  #addes IVSHMEM PluginDir
 endif
 
 # -- psm --

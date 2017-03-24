@@ -1,0 +1,4 @@
+#!/bin/sh
+
+modprobe uio
+insmod /lib/modules/`uname -r`/kernel/drivers/uio/uio_ivshmem.ko

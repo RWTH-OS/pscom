@@ -845,7 +845,8 @@ pscom_err_t pscom_connect(pscom_connection_t *connection, int nodeid, int portno
 
 
 	pscom_lock(); {
-		if (pscom_is_local(con->pub.socket, nodeid, portno)) {
+		if (pscom_is_local(con->pub.socket, nodeid, portno)) {/*check if connection leads to loopback*/
+			/*-> loopback connection*/
 			rc = pscom_con_connect_loopback(con);
 		} else {
 			/* Initial connection via TCP */
