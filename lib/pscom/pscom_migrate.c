@@ -43,7 +43,7 @@ pscom_str_replace(char *search_str, char *replace_str, char *str)
 	}
 
 	/* allocate memory */
-	if ((tmp_str = (char*)malloc(strlen(str) * sizeof(char))) == NULL) {
+	if ((tmp_str = (char*)malloc(strlen(str) * sizeof(char)+ 1)) == NULL) {
 		return -1;
 	}
 
