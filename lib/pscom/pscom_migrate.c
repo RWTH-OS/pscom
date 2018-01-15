@@ -32,10 +32,13 @@ static  char pscom_mosquitto_req_topic[PSCOM_MOSQUITTO_TOPIC_LENGTH] = PSCOM_MOS
 static  char pscom_mosquitto_resp_topic[PSCOM_MOSQUITTO_TOPIC_LENGTH] = PSCOM_MOSQUITTO_RESP_TOPIC;
 
 static inline int
-pscom_str_replace(char *search_str, char *replace_str, char *str)
+pscom_str_replace(char *search_str, char *replace_str, char *str, size_t str_mem_size)
 {
 	char *tmp_str, *search_start;
 	int str_len = 0;
+
+	/* ensure that there is enough mem for string operations */
+	assert(str_mem_size > strlen(str) + strlen(replace_str) - strlen(search_str));
 
 	/* find search_str in str */
 	if ((search_start = strstr(str, search_str)) == NULL) {
@@ -43,7 +46,7 @@ pscom_str_replace(char *search_str, char *replace_str, char *str)
 	}
 
 	/* allocate memory */
-	if ((tmp_str = (char*)malloc(strlen(str) * sizeof(char))) == NULL) {
+	if ((tmp_str = (char*)malloc(strlen(str) * sizeof(char)+ 1)) == NULL) {
 		return -1;
 	}
 
@@ -449,10 +452,10 @@ int pscom_migration_init(void)
 	sprintf(pid, "%d", getpid());
 
 	/* create topics */
-	pscom_str_replace("<hostname>", hostname, pscom_mosquitto_req_topic);
-	pscom_str_replace("<pid>", "+", pscom_mosquitto_req_topic);
-	pscom_str_replace("<hostname>", hostname, pscom_mosquitto_resp_topic);
-	pscom_str_replace("<pid>", pid, pscom_mosquitto_resp_topic);
+	pscom_str_replace("<hostname>", hostname, pscom_mosquitto_req_topic, PSCOM_MOSQUITTO_TOPIC_LENGTH);
+	pscom_str_replace("<pid>", "+", pscom_mosquitto_req_topic, PSCOM_MOSQUITTO_TOPIC_LENGTH);
+	pscom_str_replace("<hostname>", hostname, pscom_mosquitto_resp_topic, PSCOM_MOSQUITTO_TOPIC_LENGTH);
+	pscom_str_replace("<pid>", pid, pscom_mosquitto_resp_topic, PSCOM_MOSQUITTO_TOPIC_LENGTH);
 
 	/* subscribe to the migration command topic */
 	err = mosquitto_subscribe(pscom_mosquitto_client,
