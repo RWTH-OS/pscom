@@ -21,7 +21,7 @@
 #include <mosquitto.h>
 
 #define PSCOM_MOSQUITTO_CLIENT_NAME_LENGTH 	50
-#define PSCOM_MOSQUITTO_TOPIC_LENGTH 		50
+#define PSCOM_MOSQUITTO_TOPIC_LENGTH 		100
 #define PSCOM_MOSQUITTO_REQ_TOPIC 		"fast/pscom/<hostname>/<pid>/request"
 #define PSCOM_MOSQUITTO_RESP_TOPIC 		"fast/pscom/<hostname>/<pid>/response"
 #define PSCOM_BROKER_HOST 			"zerberus"
